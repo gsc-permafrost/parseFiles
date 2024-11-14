@@ -20,8 +20,8 @@ import pandas as pd
 # Timestamp - numpy array in POSIX format from logger time
 
 class parseTOB3():
-    def __init__(self):
-        pass
+    def __init__(self,log=False):
+        self.log=log
     
     def parse(self,file,mode=1,saveTo=None,timezone=None,clip=None):
         print(file)
@@ -56,7 +56,12 @@ class parseTOB3():
                     print('Converted ',file,' to ',fileOut)
                     with open(fileOut,'w',newline='') as f:
                         f.write(Preamble)
-                        self.Data.to_csv(f,index=False)            
+                        self.Data.to_csv(f,index=False)
+            log = ['Read',file]
+        else:
+            log = ['Not Read',file]
+        if log:
+            return(log)
     
     def getMetadata(self):
         def parseLine(line):
