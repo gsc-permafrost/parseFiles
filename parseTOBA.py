@@ -26,7 +26,8 @@ class parseTO():
     def __init__(self,log=False):
         self.log=log
         self.types = ['TOB3','TOA5']
-        with open('config_files\defaultMetadata.yml','r') as f:
+        c = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(c,'config_files','defaultMetadata.yml'),'r') as f:
             self.Metadata = yaml.safe_load(f)
     
     def parse(self,file,mode=1,saveTo=None,timezone=None,clip=None):
@@ -51,7 +52,11 @@ class parseTO():
                     self.Metadata['Frequency'] = f"{self.frequency}s"
                 else:
                     self.Metadata['Frequency'] = f"{int(self.frequency/pd.Timedelta('1ms').total_seconds())}ms"
-
+            print('Resample to asfreq????')
+            # self.Data = pd.DataFrame(data=self.Data)
+            # self.Data.index = pd.DatetimeIndex(pd.to_datetime(self.Timestamp,unit='s'))
+            # self.Data = self.Data.resample(self.Metadata['Frequency']).asfreq()
+            # self.Timestamp = np.array([x.timestamp() for x in self.Data.index])
         else:
             self.Data= None
         self.f.close()
