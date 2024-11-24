@@ -7,3 +7,7 @@ Table:
 Frequency:
 Timezone:
 Header:
+  default:
+    unit:
+    operation:
+    dataType:

@@ -1,0 +1,15 @@
+Type:
+StationName:
+LoggerModel:
+SerialNo:
+Program:
+Timezone:
+Table: MixedArray
+Array:
+  default:
+    Frequency:
+    Header:
+      default:
+        unit:
+        operation:
+        dataType:

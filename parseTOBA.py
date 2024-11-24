@@ -8,11 +8,11 @@ import datetime
 import numpy as np
 import pandas as pd
 
-# Requires a binary TOB3 or ascii TOA5 file form Campbell Scientific logger
+# Requires a binary TOB3 or ascii TOA5 file from Campbell Scientific logger
 # self.modes:
-# 0 - Parse Metadata
-# 1 - Read data and dump to numpy array
-# 2 - Read data and dump to a timestamped pandas dataframe
+# 1 - Parse Metadata
+# 2 - Read data and dump to numpy array
+# 3 - Read data and dump to a timestamped pandas dataframe
 # saveTo: self.mode must == 2, save a TOA5 file to specified directory with timestamp in name following format output by card convert
 # Timezone: Optionally added to Metadata
 # Clip: Optionally limit output to rows[:clip], only needed for small tables which don't fill a frame
@@ -22,7 +22,7 @@ import pandas as pd
 # Data - numpy array or pandas timestamped dataframe depending on self.mode
 # Timestamp - numpy array in POSIX format from logger time
 
-class parseTO():
+class parseTOBA():
     def __init__(self,log=False):
         self.log=log
         self.types = ['TOB3','TOA5']
@@ -31,13 +31,12 @@ class parseTO():
             self.Metadata = yaml.safe_load(f)
     
     def parse(self,file,mode=1,saveTo=None,timezone=None,clip=None):
-        print(file)
         self.mode = mode
         self.f = open(file,'rb')
         self.getType(timezone)
-        if self.mode >= 0:
-            self.readHead()
         if self.mode >= 1:
+            self.readHead()
+        if self.mode >= 2:
             if self.Metadata['Type'] != 'TOA5':
                 self.Data, self.Timestamp = self.readFrames()
             else:
@@ -64,7 +63,7 @@ class parseTO():
             if clip is not None:
                 self.Data = self.Data[:clip]
                 self.Timestamp = self.Timestamp[:clip]
-            if self.mode == 2:
+            if self.mode == 3:
                 self.Data = pd.DataFrame(self.Data)
                 self.Data.columns = self.Header.columns
                 self.Timestamp = pd.to_datetime(self.Timestamp,unit='s')
@@ -94,15 +93,15 @@ class parseTO():
         self.Preamble = self.parseLine(self.f.readline())
         if self.Preamble[0] not in self.types:
             print('File Type Not Supported')
-            self.mode = -1
+            self.mode = 0
         else:
-            self.Metadata['Type']=self.Preamble[0],
-            self.Metadata['StationName']=self.Preamble[1],
-            self.Metadata['LoggerModel']=self.Preamble[2],
-            self.Metadata['SerialNo']=self.Preamble[3],
+            self.Metadata['Type']=self.Preamble[0]
+            self.Metadata['StationName']=self.Preamble[1]
+            self.Metadata['LoggerModel']=self.Preamble[2]
+            self.Metadata['SerialNo']=self.Preamble[3]
             self.Metadata['Program']=self.Preamble[-3].split(':')[-1]
             if self.Preamble[0] == 'TOA5':
-                search = '([0-9]{4}\_[0-9]{2}\_[0-9]{2}\_[0-9]{4})'
+                search = r'([0-9]{4}\_[0-9]{2}\_[0-9]{2}\_[0-9]{4})'
                 fmt = '%Y_%m_%d_%H%M'
                 f = os.path.split(self.f.name)[-1]
                 self.Metadata['Timestamp'] = pd.to_datetime(datetime.datetime.strptime(
@@ -130,7 +129,7 @@ class parseTO():
             if match:
                 s = s[match.start():]
             return s 
-        freqDict = {'MSEC':'ms','Usec':'us','Sec':'s','HR':'H','MIN':'min'}
+        freqDict = {'MSEC':'ms','Usec':'us','Sec':'s','HR':'h','MIN':'min'}
         subDict = {'SecUsec':'Sec1Usec','SecMsec':'Sec1Msec'}
         freq = split_digit(text)
         for key,value in freqDict.items():
@@ -141,18 +140,22 @@ class parseTO():
         columns = self.parseLine(self.f.readline())
         if self.Metadata['Type'] == 'TOA5':
             N=2
-            ix = ['unit','operation']
         else:
             N=3
-            ix = ['unit','operation','dataType']
+        ix = list(self.Metadata['Header']['default'].keys())[:N]
         data = [self.parseLine(self.f.readline()) for n in range(N)]
         self.Header = pd.DataFrame(columns = columns,data = data,index=ix)
-        self.Metadata['Headers'] = self.Header.to_dict()
+        self.Metadata['Header'] = self.Header.to_dict()
         if self.Metadata['Type'] != 'TOA5':
             self.FP2 = np.where(self.Header.loc['dataType']=='FP2')[0]
-            dtype_map = {"IEEE4B": "f","IEEE8B": "d","FP2": "H"}
-            self.byteMap = ''.join([dtype_map[val['dataType']] for val in self.Metadata['Headers'].values()])
+            dtype_map_struct = {"IEEE4B": "f","IEEE8B": "d","FP2": "H"}
+            self.byteMap = ''.join([dtype_map_struct[val['dataType']] for val in self.Metadata['Header'].values()])
+        dtype_map_numpy = {"IEEE4B": "float32","IEEE8B": "float64","FP2": "float16"}
+        for key,value in self.Metadata['Header'].items():
+            if value['dataType'] in dtype_map_numpy.keys():
+                self.Metadata['Header'][key]['dataType'] = dtype_map_numpy[value['dataType']]
         self.startTime = self.Metadata['Timestamp'].timestamp()        
+        self.Metadata['Timestamp'] = self.Metadata['Timestamp'].strftime('%Y-%m-%d %H:%M')
 
     def readFrames(self):
         Header_size = 12

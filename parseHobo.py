@@ -6,9 +6,9 @@ import dateutil.parser as dateParse
 
 # Requires a csv file output by a HOBO logger
 # self.modes:
-# 0 - Parse Metadata
-# 1 - Read data and dump to numpy array
-# 2 - Read data and dump to a timestamped pandas dataframe
+# 1 - Parse Metadata
+# 2 - Read data and dump to numpy array
+# 3 - Read data and dump to a timestamped pandas dataframe
 # saveTo: self.mode must == 2, save a TOA5 file to specified directory with timestamp in name following format output by card convert
 # Timezone: Optionally added to Metadata
 # Clip: Optionally limit output to rows[:clip], only needed for small tables which don't fill a frame
@@ -34,24 +34,19 @@ class parseHoboCSV():
             self.isHobo = True
         else:
             self.isHobo = False
-            self.mode = -1
-        
-        if self.mode >= 0:
+            self.mode = 0
+        if self.mode >= 1:
             self.Metadata['Type'] = 'HOBOcsv'
             fn = os.path.split(file)[-1].rsplit('.',1)[0].split('-')
             self.Metadata['StationName']=fn[1].rsplit('.',1)[0]
             self.Metadata['SerialNo']=fn[0]
             self.Metadata['Program'] = T.replace('"','').split('Plot Title: ')[-1]
-            self.Metadata['Table'] = self.Metadata['Program']
+            self.Metadata['Table'] = 'Hobo_Readout'
             self.parseHeader()        
         self.f.close()
-        if self.mode >= 1:
-            print('Resample to asfreq????')
-            # self.Data.index = pd.DatetimeIndex(pd.to_datetime(self.Timestamp,unit='s'))
-            # self.Data = self.Data.resample(self.Metadata['Frequency']).asfreq()
-            # self.Timestamp = np.array([x.timestamp() for x in self.Data.index])
+        if self.mode >= 2:
             self.Data = self.Data.select_dtypes('float32').values
-        if self.mode == 2:
+        if self.mode == 3:
             self.Data = pd.DataFrame(self.Data)
             self.Data.columns = self.Header.loc[:,self.Header.loc['dataType'] == 'float32'].columns
             self.Timestamp = pd.to_datetime(self.Timestamp,unit='s')
@@ -72,15 +67,15 @@ class parseHoboCSV():
         self.Header.columns = self.Header.columns.str.replace(' ','_').str.replace(':','').str.rstrip('_')
         self.Header = self.Header[1:-1].copy()
         self.Header.index.name=''
-        self.Header.index=['Unit','Logger','Sensor']
+        self.Header.index=['unit','logger','sensor']
         self.statusCols = ['Host_Connected', 'Stopped', 'End_Of_File']
         self.statusCols = self.Header.columns[self.Header.columns.isin(self.statusCols)]
         # self.statusCols =
         self.readData()
         self.Header.loc['dataType'] = [str(v) for v in self.Data.dtypes.values]
         self.Metadata['Header'] = self.Header.to_dict()
-        self.Metadata['Frequency'] = str(int(np.min(np.diff(self.Timestamp))))+' S'
-        self.Metadata['Timezone'] = self.Header['Date_Time']['Unit'].lstrip()
+        self.Metadata['Frequency'] = str(int(np.median(np.diff(self.Timestamp))))+' S'
+        self.Metadata['Timezone'] = self.Header['Date_Time']['unit'].lstrip()
         
     def readData(self):
         self.Data = pd.read_csv(self.f,header=None)
