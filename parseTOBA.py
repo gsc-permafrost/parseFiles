@@ -51,11 +51,6 @@ class parseTOBA():
                     self.Metadata['Frequency'] = f"{self.frequency}s"
                 else:
                     self.Metadata['Frequency'] = f"{int(self.frequency/pd.Timedelta('1ms').total_seconds())}ms"
-            print('Resample to asfreq????')
-            # self.Data = pd.DataFrame(data=self.Data)
-            # self.Data.index = pd.DatetimeIndex(pd.to_datetime(self.Timestamp,unit='s'))
-            # self.Data = self.Data.resample(self.Metadata['Frequency']).asfreq()
-            # self.Timestamp = np.array([x.timestamp() for x in self.Data.index])
         else:
             self.Data= None
         self.f.close()
@@ -74,8 +69,7 @@ class parseTOBA():
                     self.Data = self.Data.reset_index()
                     self.Data.columns = pd.MultiIndex.from_tuples([
                         ('TIMESTAMP', 'TS', '') if col == ('TIMESTAMP', '', '') else col
-                        for col in self.Data.columns
-                    ])
+                        for col in self.Data.columns])
                     Preamble = '"'+'","'.join(self.Preamble[0][:-1]+self.Preamble[1][:1])+'"\n'
                     file = file.split('.dat')[-0]+'_'+self.Metadata['timestamp'].strftime('%Y_%m_%d_%H%M')+'.dat'
                     fileOut = os.path.join(saveTo,os.path.split(file)[-1])
