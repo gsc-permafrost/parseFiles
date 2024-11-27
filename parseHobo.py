@@ -20,7 +20,6 @@ import dateutil.parser as dateParse
 
 class parseHoboCSV():
     def __init__(self,log=False):
-        print('Warning: still under development, check the timestamp')
         self.log=log
         c = os.path.dirname(os.path.abspath(__file__))
         with open(os.path.join(c,'config_files','defaultMetadata.yml'),'r') as f:
@@ -52,9 +51,7 @@ class parseHoboCSV():
             self.Timestamp = pd.to_datetime(self.Timestamp,unit='s')
             self.Data.index=self.Timestamp.round(self.Metadata['Frequency'])
             self.Data.index.name = 'TIMESTAMP'
-        
-
-
+    
     def parseHeader(self):
         H = self.f.readline()
         H = H.replace('#','RecordNumber').lstrip('"').rstrip('"\n').split('","')
@@ -67,13 +64,14 @@ class parseHoboCSV():
         self.Header.columns = self.Header.columns.str.replace(' ','_').str.replace(':','').str.rstrip('_')
         self.Header = self.Header[1:-1].copy()
         self.Header.index.name=''
-        self.Header.index=['unit','logger','sensor']
+        self.Header.index = ['unit','logger','sensor']
+        self.Header.loc['ignore',:]=True
         self.statusCols = ['Host_Connected', 'Stopped', 'End_Of_File']
         self.statusCols = self.Header.columns[self.Header.columns.isin(self.statusCols)]
-        # self.statusCols =
         self.readData()
         self.Header.loc['dataType'] = [str(v) for v in self.Data.dtypes.values]
-        self.Metadata['Header'] = self.Header.to_dict()
+        self.Header.loc['ignore',:]=(self.Header.loc['dataType']!='float32').values
+        self.Contents = self.Header.to_dict()
         self.Metadata['Frequency'] = str(int(np.median(np.diff(self.Timestamp))))+' S'
         self.Metadata['Timezone'] = self.Header['Date_Time']['unit'].lstrip()
         
@@ -86,10 +84,6 @@ class parseHoboCSV():
         # Convert default 64-bit values to 32-bit
         self.Data = self.Data.astype({col:'float32' for col in self.Data.select_dtypes('float64').columns})
         self.Data = self.Data.astype({col:'int32' for col in self.Data.select_dtypes('int64').columns})
-        print('Confirm dateutil parser works!')
-        # try:
-        #     self.Timestamp = np.array([x.timestamp() for x in pd.to_datetime(self.Data['Date_Time'],format='%y/%m/%d %H:%M:%S')])
-        # except:
         self.Timestamp = np.array([dateParse.parse(x).timestamp() for x in self.Data['Date_Time']])
         
 

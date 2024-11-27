@@ -86,7 +86,6 @@ class parseTOBA():
     def getType(self,timezone):
         self.Preamble = self.parseLine(self.f.readline())
         if self.Preamble[0] not in self.types:
-            print('File Type Not Supported')
             self.mode = 0
         else:
             self.Metadata['Type']=self.Preamble[0]
@@ -133,21 +132,21 @@ class parseTOBA():
     def readHead(self):
         columns = self.parseLine(self.f.readline())
         if self.Metadata['Type'] == 'TOA5':
-            N=2
+            ix = ['unit','operation']
         else:
-            N=3
-        ix = list(self.Metadata['Header']['default'].keys())[:N]
-        data = [self.parseLine(self.f.readline()) for n in range(N)]
+            ix = ['unit','operation','dataType']
+        data = [self.parseLine(self.f.readline()) for _ in ix]
         self.Header = pd.DataFrame(columns = columns,data = data,index=ix)
-        self.Metadata['Header'] = self.Header.to_dict()
+        self.Contents = self.Header.to_dict()
         if self.Metadata['Type'] != 'TOA5':
             self.FP2 = np.where(self.Header.loc['dataType']=='FP2')[0]
             dtype_map_struct = {"IEEE4B": "f","IEEE8B": "d","FP2": "H"}
-            self.byteMap = ''.join([dtype_map_struct[val['dataType']] for val in self.Metadata['Header'].values()])
+            self.byteMap = ''.join([dtype_map_struct[val['dataType']] for val in self.Contents.values()])
         dtype_map_numpy = {"IEEE4B": "float32","IEEE8B": "float64","FP2": "float16"}
-        for key,value in self.Metadata['Header'].items():
+        for key,value in self.Contents.items():
             if value['dataType'] in dtype_map_numpy.keys():
-                self.Metadata['Header'][key]['dataType'] = dtype_map_numpy[value['dataType']]
+                self.Contents[key]['dataType'] = dtype_map_numpy[value['dataType']]
+                self.Contents[key]['ignore'] = self.Contents[key]['dataType'] == 'float32'
         self.startTime = self.Metadata['Timestamp'].timestamp()        
         self.Metadata['Timestamp'] = self.Metadata['Timestamp'].strftime('%Y-%m-%d %H:%M')
 

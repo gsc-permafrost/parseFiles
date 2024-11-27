@@ -29,7 +29,7 @@ class parseMixedArray():
         with open(os.path.join(c,'config_files','defaultMetadata_mixedArray.yml'),'r') as f:
             self.Metadata = yaml.safe_load(f)
             self.Metadata['Type'] = 'MixedArray'
-
+        self.Contents = self.Metadata.pop('Array')
 
     def parse(self,file,DEF=None,mode=1,saveTo=None,timezone=None,clip=None):
         self.isMixedArray = False
@@ -40,6 +40,7 @@ class parseMixedArray():
             d = os.path.split(file)[0]
             DEF = [f for f in os.listdir(d) if f.endswith('DEF')]
             if len(DEF)!=1:
+                print(file)
                 print('Ambiguous, cannot autodetect DEF file')
                 DEF = None
             else:
@@ -61,9 +62,9 @@ class parseMixedArray():
                     for arrID in self.Arrays.keys():
                         self.Arrays[arrID]['Data'] = pd.DataFrame(
                             data=self.Arrays[arrID]['Data'],
-                            columns=list(self.Metadata['Array'][arrID]['Header'].keys()),
+                            columns=list(self.Contents[arrID]['Header'].keys()),
                             index = pd.to_datetime(self.Arrays[arrID]['Timestamp'],unit='s'))
-                        for key ,value in self.Metadata['Array'][arrID]['Header'].items():
+                        for key ,value in self.Contents[arrID]['Header'].items():
                             self.Arrays[arrID]['Data'][key] = self.Arrays[arrID]['Data'][key].astype(value['dataType'])
 
     def getTables(self):
@@ -83,8 +84,8 @@ class parseMixedArray():
                 frequency = self.parseFreq(f"{l[2]} {l[3]}")
                 self.Arrays[arrID] = {}
                 self.Arrays[arrID]['Data'] = []
-                self.Metadata['Array'][arrID] = self.Metadata['Array']['default'].copy()
-                self.Metadata['Array'][arrID]['Frequency'] = frequency
+                self.Contents[arrID] = self.Contents
+                self.Contents[arrID]['Frequency'] = frequency
             elif arrID >-0 and l == '\n':
 
                 arrID = -1
@@ -102,12 +103,14 @@ class parseMixedArray():
                         dataType = 'int32'
                     else:
                         dataType = 'float32'                
-                self.Metadata['Array'][arrID]['Header'][name] = self.Metadata['Array'][arrID]['Header']['default'].copy()
-                self.Metadata['Array'][arrID]['Header'][name]['operation'] = operation
-                self.Metadata['Array'][arrID]['Header'][name]['dataType'] = dataType
-        self.Metadata['Array'].pop('default')
-        for arrID in self.Metadata['Array'].keys():
-            self.Metadata['Array'][arrID]['Header'].pop('default')
+                self.Contents[arrID]['Header'][name] = self.Contents[arrID]['Header']['default'].copy()
+                self.Contents[arrID]['Header'][name]['operation'] = operation
+                self.Contents[arrID]['Header'][name]['dataType'] = dataType
+                self.Contents[arrID]['Header'][name]['ignore'] = dataType == 'float32'
+                    
+        self.Contents.pop('default')
+        for arrID in self.Contents.keys():
+            self.Contents[arrID]['Header'].pop('default')
 
     def parseFreq(self,text):
         text = text.rstrip('\n')
@@ -127,7 +130,7 @@ class parseMixedArray():
         for row in self.MA:
             for arrID in self.Arrays.keys():
                 if int(row[0]) == arrID:
-                    for i in range(len(self.Metadata['Array'][arrID]['Header'].keys())-len(row)):
+                    for i in range(len(self.Contents[arrID]['Header'].keys())-len(row)):
                         row.append(np.nan)
                     self.Arrays[arrID]['Data'].append(row)
         for arrID in self.Arrays.keys():
@@ -137,7 +140,7 @@ class parseMixedArray():
     def parseDate(self):
         # Assumes Year_RMT,Day_RMT,Hour_Minute_RMT as is the default output from shortcut
         for arrID in self.Arrays.keys():
-            if sum([k in list(self.Metadata['Array'][arrID]['Header'].keys()) for k in ['Year_RTM', 'Day_RTM', 'Hour_Minute_RTM']]) != 3:
+            if sum([k in list(self.Contents[arrID]['Header'].keys()) for k in ['Year_RTM', 'Day_RTM', 'Hour_Minute_RTM']]) != 3:
                 sys.exit('Timestamp format currently not supported.  Should ba a simple fix')
             Date = self.Arrays[arrID]['Data'][:,1:3].astype(int).astype(str)
             Date = [' '.join(D) for D in self.Arrays[arrID]['Data'][:,1:3].astype(int).astype(str)]
