@@ -3,7 +3,7 @@ import yaml
 import numpy as np
 import pandas as pd
 import dateutil.parser as dateParse
-
+from dataclasses import dataclass,field
 # Requires a csv file output by a HOBO logger
 # self.modes:
 # 1 - Parse Metadata
@@ -18,15 +18,28 @@ import dateutil.parser as dateParse
 # Data - numpy array or pandas timestamped dataframe depending on self.mode
 # Timestamp - numpy array in POSIX format from logger time
 
-class parseHoboCSV():
-    def __init__(self,log=False):
-        self.log=log
-        c = os.path.dirname(os.path.abspath(__file__))
-        with open(os.path.join(c,'config_files','defaultMetadata.yml'),'r') as f:
-            self.Metadata = yaml.safe_load(f)
+def load():
+    c = os.path.dirname(os.path.abspath(__file__))
+    pth = os.path.join(c,'config_files','defaultMetadata.yml')
+    with open(pth,'r') as f:
+        defaults = yaml.safe_load(f)
+    return(defaults)
+@dataclass
+class Metadata:
+    log: bool = False
+    verbose: bool = False
+    mode: int = 1
+    Metadata: dict = field(default_factory=load)
+    Contents: dict = field(default_factory=dict)
+
+class parseHoboCSV(Metadata):
+    def __init__(self,**kwds):
+        super().__init__(**kwds)
         
-    def parse(self,file,mode=1,saveTo=None):
-        self.mode = mode
+    def parse(self,file,saveTo=None):
+        if not file.endswith('.csv'):
+            self.mode = 0
+            return 
         self.f = open(file,'r',encoding='utf-8-sig')
         T = self.f.readline().rstrip('\n')
         if T.startswith('"Plot Title: '):
@@ -35,12 +48,17 @@ class parseHoboCSV():
             self.isHobo = False
             self.mode = 0
         if self.mode >= 1:
-            self.Metadata['Type'] = 'HOBOcsv'
+            self.Metadata['Type'] = 'HOBO-readout'
             fn = os.path.split(file)[-1].rsplit('.',1)[0].split('-')
             self.Metadata['StationName']=fn[1].rsplit('.',1)[0]
             self.Metadata['SerialNo']=fn[0]
+            ts =  T.split('.')[-1].rstrip('"')
+            if len(ts)<= 6:
+                self.Metadata['Timestamp'] = pd.to_datetime(ts,format='%y%m%d').strftime('%Y-%m-%dT%H%M')
+            else:
+                print('!!!',ts)
+                self.Metadata['Timestamp'] = ts
             self.Metadata['Program'] = T.replace('"','').split('Plot Title: ')[-1]
-            self.Metadata['Table'] = 'Hobo_Readout'
             self.parseHeader()        
         self.f.close()
         if self.mode >= 2:
@@ -64,7 +82,7 @@ class parseHoboCSV():
         self.Header.columns = self.Header.columns.str.replace(' ','_').str.replace(':','').str.rstrip('_')
         self.Header = self.Header[1:-1].copy()
         self.Header.index.name=''
-        self.Header.index = ['unit','logger','sensor']
+        self.Header.index = ['unit_in','logger','sensor']
         self.Header.loc['ignore',:]=True
         self.statusCols = ['Host_Connected', 'Stopped', 'End_Of_File']
         self.statusCols = self.Header.columns[self.Header.columns.isin(self.statusCols)]
@@ -72,8 +90,8 @@ class parseHoboCSV():
         self.Header.loc['dataType'] = [str(v) for v in self.Data.dtypes.values]
         self.Header.loc['ignore',:]=(self.Header.loc['dataType']!='float32').values
         self.Contents = self.Header.to_dict()
-        self.Metadata['Frequency'] = str(int(np.median(np.diff(self.Timestamp))))+' S'
-        self.Metadata['Timezone'] = self.Header['Date_Time']['unit'].lstrip()
+        self.Metadata['Frequency'] = str(int(np.median(np.diff(self.Timestamp))))+'s'
+        self.Metadata['Timezone'] = self.Header['Date_Time']['unit_in'].lstrip()
         
     def readData(self):
         self.Data = pd.read_csv(self.f,header=None)

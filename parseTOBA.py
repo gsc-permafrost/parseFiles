@@ -7,6 +7,7 @@ import argparse
 import datetime
 import numpy as np
 import pandas as pd
+from dataclasses import dataclass,field
 
 # Requires a binary TOB3 or ascii TOA5 file from Campbell Scientific logger
 # self.modes:
@@ -22,16 +23,31 @@ import pandas as pd
 # Data - numpy array or pandas timestamped dataframe depending on self.mode
 # Timestamp - numpy array in POSIX format from logger time
 
-class parseTOBA():
-    def __init__(self,log=False):
-        self.log=log
+
+def load():
+    c = os.path.dirname(os.path.abspath(__file__))
+    pth = os.path.join(c,'config_files','defaultMetadata.yml')
+    with open(pth,'r') as f:
+        defaults = yaml.safe_load(f)
+    return(defaults)
+@dataclass
+class Metadata:
+    log: bool = False
+    verbose: bool = False
+    mode: int = 1
+    Metadata: dict = field(default_factory=load)
+    Contents: dict = field(default_factory=dict)
+
+
+class parseTOBA(Metadata):
+    def __init__(self,**kwds):
+        super().__init__(**kwds)
         self.types = ['TOB3','TOA5']
-        c = os.path.dirname(os.path.abspath(__file__))
-        with open(os.path.join(c,'config_files','defaultMetadata.yml'),'r') as f:
-            self.Metadata = yaml.safe_load(f)
     
-    def parse(self,file,mode=1,saveTo=None,timezone=None,clip=None):
-        self.mode = mode
+    def parse(self,file,saveTo=None,timezone=None,clip=None):
+        if not file.endswith('.dat'):
+            self.mode = 0
+            return 
         self.f = open(file,'rb')
         self.getType(timezone)
         if self.mode >= 1:
@@ -39,6 +55,7 @@ class parseTOBA():
         if self.mode >= 2:
             if self.Metadata['Type'] != 'TOA5':
                 self.Data, self.Timestamp = self.readFrames()
+                print(self.Data)
             else:
                 self.Data = pd.read_csv(self.f,header=None)
                 d = np.where(self.Header.columns=='TIMESTAMP')[0][0]
@@ -47,10 +64,10 @@ class parseTOBA():
                 excl = self.Header.columns[0]
                 self.Header = self.Header[self.Header.columns[self.Header.columns!=excl]]     
                 self.frequency = round(self.Timestamp[-1] - self.Timestamp[0])/self.Timestamp.shape[0]
-                if self.frequency >= 1:
-                    self.Metadata['Frequency'] = f"{self.frequency}s"
-                else:
-                    self.Metadata['Frequency'] = f"{int(self.frequency/pd.Timedelta('1ms').total_seconds())}ms"
+                # if self.frequency >= 1:
+                self.Metadata['Frequency'] = f"{self.frequency}s"
+                # else:
+                #     self.Metadata['Frequency'] = f"{int(self.frequency/pd.Timedelta('1ms').total_seconds())}ms"
         else:
             self.Data= None
         self.f.close()
@@ -92,7 +109,11 @@ class parseTOBA():
             self.Metadata['StationName']=self.Preamble[1]
             self.Metadata['LoggerModel']=self.Preamble[2]
             self.Metadata['SerialNo']=self.Preamble[3]
-            self.Metadata['Program']=self.Preamble[-3].split(':')[-1]
+            if self.Metadata['StationName'] == self.Metadata['SerialNo']:
+                self.Metadata['StationName'] = None
+            self.Metadata['Program']=self.Preamble[-3].split(':')[-1].rsplit('.')[0]
+            while self.Metadata['Program'].endswith('_str'):
+                self.Metadata['Program'] = self.Metadata['Program'].removesuffix('_str')
             if self.Preamble[0] == 'TOA5':
                 search = r'([0-9]{4}\_[0-9]{2}\_[0-9]{2}\_[0-9]{4})'
                 fmt = '%Y_%m_%d_%H%M'
@@ -104,9 +125,10 @@ class parseTOBA():
                 self.Metadata['Timestamp'] = pd.to_datetime(self.Preamble[-1])
                 self.Preamble = [self.Preamble,self.parseLine(self.f.readline())]
                 self.Metadata['Table'] = self.Preamble[1][0]
-                self.Metadata['Frequency'] = self.parseFreq(self.Preamble[1][1])
+                # self.Metadata['Frequency'] = self.parseFreq(self.Preamble[1][1])
                 # Used for reading
                 self.frequency = pd.to_timedelta(self.parseFreq(self.Preamble[1][1])).total_seconds()
+                self.Metadata['Frequency'] = str(self.frequency)+'s'
                 self.frameSize = int(self.Preamble[1][2])
                 self.val_stamp = int(self.Preamble[1][4])        
                 self.frameTime = pd.to_timedelta(self.parseFreq(self.Preamble[1][5])).total_seconds()
@@ -127,14 +149,15 @@ class parseTOBA():
         freq = split_digit(text)
         for key,value in freqDict.items():
             freq = re.sub(key.lower(), value, freq, flags=re.IGNORECASE)
+        freq = freq.replace(' ','')
         return(freq)
     
     def readHead(self):
         columns = self.parseLine(self.f.readline())
         if self.Metadata['Type'] == 'TOA5':
-            ix = ['unit','operation']
+            ix = ['unit_in','operation']
         else:
-            ix = ['unit','operation','dataType']
+            ix = ['unit_in','operation','dataType']
         data = [self.parseLine(self.f.readline()) for _ in ix]
         self.Header = pd.DataFrame(columns = columns,data = data,index=ix)
         self.Contents = self.Header.to_dict()
@@ -146,9 +169,9 @@ class parseTOBA():
         for key,value in self.Contents.items():
             if value['dataType'] in dtype_map_numpy.keys():
                 self.Contents[key]['dataType'] = dtype_map_numpy[value['dataType']]
-                self.Contents[key]['ignore'] = self.Contents[key]['dataType'] == 'float32'
+                self.Contents[key]['ignore'] = self.Contents[key]['dataType'] != 'float32'
         self.startTime = self.Metadata['Timestamp'].timestamp()        
-        self.Metadata['Timestamp'] = self.Metadata['Timestamp'].strftime('%Y-%m-%d %H:%M')
+        self.Metadata['Timestamp'] = self.Metadata['Timestamp'].strftime('%Y-%m-%dT%H%M')
 
     def readFrames(self):
         Header_size = 12
@@ -160,7 +183,7 @@ class parseTOBA():
         Timestamp = []
         campbellBaseTime = pd.to_datetime('1990-01-01').timestamp()
         readFrame = True
-        while readFrame:            
+        while readFrame:         
             sb = self.f.read(self.frameSize)
             if len(sb)!=0:
                 Header = sb[:Header_size]

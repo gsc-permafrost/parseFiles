@@ -1,15 +1,17 @@
-Type:
+Type: MixedArray
+Table:
 StationName:
-LoggerModel:
+Logger:
 SerialNo:
 Program:
+Frequency: 
+Timestamp:
 Timezone:
-Table: MixedArray
 Array:
   default:
     Frequency:
-    Header:
+    arrayContents:
       default:
-        unit:
+        unit_in:
         operation:
         dataType:

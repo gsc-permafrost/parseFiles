@@ -1,8 +1,9 @@
 Type:
+Table:
 StationName:
-LoggerModel:
+Logger:
 SerialNo:
 Program:
-Table:
 Frequency:
+Timestamp:
 Timezone:
