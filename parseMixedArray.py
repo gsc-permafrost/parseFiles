@@ -29,6 +29,7 @@ def load():
     with open(pth,'r') as f:
         defaults = yaml.safe_load(f)
     return(defaults)
+
 @dataclass
 class Metadata:
     log: bool = False
@@ -109,6 +110,7 @@ class parseMixedArray(Metadata):
                 l = l.replace('  ',' ').split(' ')
                 arrID = l[0]
                 frequency = pd.to_timedelta(self.parseFreq(f"{l[2]} {l[3]}")).total_seconds()
+                self.Metadata['Table'].append(str(arrID))
                 self.Arrays[arrID] = {}
                 self.Arrays[arrID]['Data'] = []
                 self.Contents[arrID] = self.Contents['default'].copy()
@@ -138,7 +140,8 @@ class parseMixedArray(Metadata):
         self.Contents.pop('default')
         for arrID in self.Contents.keys():
             self.Contents[arrID]['arrayContents'].pop('default')
-         
+        self.Metadata['Table'] = '_'.join(self.Metadata['Table'])
+
 
     def parseFreq(self,text):
         text = text.rstrip('\n')

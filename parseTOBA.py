@@ -38,7 +38,6 @@ class Metadata:
     Metadata: dict = field(default_factory=load)
     Contents: dict = field(default_factory=dict)
 
-
 class parseTOBA(Metadata):
     def __init__(self,**kwds):
         super().__init__(**kwds)
