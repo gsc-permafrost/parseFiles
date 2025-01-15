@@ -69,6 +69,8 @@ class parseHoboCSV(Metadata):
             self.Timestamp = pd.to_datetime(self.Timestamp,unit='s')
             self.Data.index=self.Timestamp.round(self.Metadata['Frequency'])
             self.Data.index.name = 'TIMESTAMP'
+        elif self.mode == 4:
+            print(self.Data)
     
     def parseHeader(self):
         H = self.f.readline()
