@@ -45,19 +45,9 @@ class asciiHeader(genericLoggerFile):
             self.variableMap = {var.originalName:reprToDict(var) for var in map(
                                     lambda name: columnMap(originalName = name, **self.variableMap[name]),self.variableMap.keys()
                                     )}
-
-        elif self.fileType == 'TOA5':
-            self.Table = header[-1]
-            self.variableMap = {column:{'unit':unit,
-                                        'variableDescription':aggregation
-                                        } for column,unit,aggregation in zip(
-                                            self.parseLine(self.fileObject.readline()),
-                                            self.parseLine(self.fileObject.readline()),
-                                            self.parseLine(self.fileObject.readline()),
-                                            )}
-            f = os.path.split(self.fileObject.name)[-1]
-            self.fileTimestamp = pd.to_datetime(datetime.datetime.strptime(re.search(r'([0-9]{4}\_[0-9]{2}\_[0-9]{2}\_[0-9]{4})', f.rsplit('.',1)[0]).group(0),'%Y_%m_%d_%H%M'))
-                
+        else:
+            return(f"filetype: {self.fileType} not supported")
+        
     def parseLine(self,line):
         return(line.decode('ascii').strip().replace('"','').split(','))
 
@@ -78,33 +68,22 @@ class asciiHeader(genericLoggerFile):
 @dataclass(kw_only=True)
 class read(asciiHeader):
     sourceFile: str
+    writeBinary: bool = False
     header: list = field(default_factory=lambda:{})
-    readData: bool = field(default=True,repr=False)
+    toArray: bool = field(default=False,repr=False)
     Data: pd.DataFrame = field(default_factory=pd.DataFrame,repr=False)
     calcStats: list = field(default_factory=lambda:[],repr=False)
 
     def __post_init__(self):
         with open(self.sourceFile,'rb') as self.fileObject:
             super().__post_init__()
-            if self.readData:
-                self.Data, Timestamp = self.readFrames()
-                self.Data = pd.DataFrame(self.Data)
-                if self.Data.empty:
-                    return
-                self.Data.columns = [var for var in self.variableMap]
-                Timestamp = pd.to_datetime(Timestamp,unit='s')
-                self.Data.index=Timestamp.round(self.frequency)
-                self.Data.index.name = 'TIMESTAMP'
-                if self.calcStats != []:
-                    Agg = {}
-                    for column in self.variableMap:
-                        Agg[column] = self.Data[column].agg(self.calcStats)
-                    self.Data = pd.DataFrame(
-                        index=[Timestamp[-1]],
-                        data = {f"{col}_{agg}":val 
-                                for col in Agg.keys() 
-                                for agg,val in Agg[col].items()})
+            self.Data, self.Timestamp = self.readFrames()
+            if self.toArray:
+                self.toBinaryArray()
+            else:
+                self.toDataFrame()
                 genericLoggerFile.__post_init__(self)
+        self.fileObject.close()
             
     def readFrames(self):
         Header_size = 12
@@ -127,7 +106,6 @@ class read(asciiHeader):
                 flag_e = (0x00002000 & Footer) >> 14
                 flag_m = (0x00004000 & Footer) >> 15
                 footer_validation = (0xFFFF0000 & Footer) >> 16
-
                 time_1 = (Header[0]+Header[1]*self.frameTime+campbellBaseTime)
                 if footer_validation == self.val_stamp and flag_e != 1 and flag_m != 1:
                     Timestamp.append([time_1+i*frequency for i in range(records_per_frame)])
@@ -146,9 +124,6 @@ class read(asciiHeader):
                 readFrame = False
         if self.verbose:
             print(f'Frames {i}')
-        # tmp = data.T
-        # for i in range(tmp.shape[0]):
-        #     print(tmp[i])
         if i > 0:
             return (data,np.array(Timestamp).flatten())
         else:
@@ -177,3 +152,23 @@ class read(asciiHeader):
         for ix in FP2_ix:
             Body[ix] = FP2_map(Body[ix])
         return(Body)
+    
+    def toBinaryArray(self):
+        self.Data = (self.Data.T).flatten().astype('float32')
+
+    def toDataFrame(self):
+        self.Data = pd.DataFrame(
+            data = self.Data,
+            index=pd.to_datetime(self.Timestamp,unit='s').round(self.frequency)
+            )
+        self.Data.columns = [var for var in self.variableMap]
+        self.Data.index.name = 'TIMESTAMP'
+        if self.calcStats != []:
+            Agg = {}
+            for column in self.variableMap:
+                Agg[column] = self.Data[column].agg(self.calcStats)
+            self.Data = pd.DataFrame(
+                index=[self.Timestamp[-1]],
+                data = {f"{col}_{agg}":val 
+                        for col in Agg.keys() 
+                        for agg,val in Agg[col].items()})

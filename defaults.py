@@ -48,20 +48,28 @@ class genericLoggerFile:
     fileTimestamp: str = field(default='%Y_%m_%d_%H%M',repr=False)
     variableMap: dict = field(default_factory=lambda:{})
     Data: pd.DataFrame = field(default_factory=pd.DataFrame,repr=False)
-    verbose: bool = field(default=True,repr=False)
+    verbose: bool = field(default=False,repr=False)
 
     def __post_init__(self):
         # Create the template column map, fill column dtype where not present 
+        # self.fileTimestamp = self.fileTimestamp.strftime(self.__dataclass_fields__['fileTimestamp'].default)
+
+        # if type(self.Data) == pd.DataFrame:
         self.variableMap = {key:{'dtype':self.Data[key].dtype,'originalName':key}|self.variableMap[key] 
                                 if key in self.variableMap 
                                 else {'dtype':self.Data[key].dtype,'originalName':key} 
                                 for key in self.Data.columns}
         self.variableMap = {var.safeName:reprToDict(var) for var in map(lambda name: columnMap(**self.variableMap[name]),self.variableMap.keys())}
 
-        self.fileTimestamp = self.fileTimestamp.strftime(self.__dataclass_fields__['fileTimestamp'].default)
-
-
     def applySafeNames(self):
         self.safeMap = {val['originalName']:safeName for safeName,val in self.variableMap.items()}
         self.backMap = {safeName:originalName for originalName,safeName in self.safeMap.items()}
         self.Data = self.Data.rename(columns=self.safeMap)
+
+
+@dataclass(kw_only=True)
+class df2binary:
+    varibleMap: None
+    dataframe: None
+    binary: None
+    dtype: str = 'float32'

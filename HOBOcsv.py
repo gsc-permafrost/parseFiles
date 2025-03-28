@@ -4,9 +4,7 @@ import dateutil.parser as dateParse
 
 @dataclass(kw_only=True)
 class read(genericLoggerFile):
-    verbose: bool = field(default=True,repr=False)
     timestampName: str = field(default="Date Time",repr=False)
-    varRepMap: dict = field(default_factory=dict)
     yearfirst: bool = field(default=True,repr=False)
     statusCols: list = field(default_factory=lambda:['Host Connected', 'Stopped', 'End Of File'],repr=False)
 
