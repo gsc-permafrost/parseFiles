@@ -7,6 +7,27 @@ import pandas as pd
 import dateutil.parser as dateParse
 from dataclasses import dataclass,field
 
+
+
+# Type: MixedArray
+# Table: []
+# StationName:
+# Logger:
+# SerialNo:
+# Program:
+# Frequency: 
+# Timestamp:
+# Timezone:
+# Array:
+#   default:
+#     Frequency:
+#     arrayContents:
+#       default:
+#         unit_in:
+#         operation:
+#         dataType:
+
+
 # Requires a mixed ascii array file along with corresponding .DEF file from Campbell Scientific logger
 # file: must be list [array.dat,program.def] in order to parse properly
 # modes:
