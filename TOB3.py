@@ -1,5 +1,5 @@
 
-from .defaults import * 
+from .baseMethods import * 
 import struct
 
 @dataclass(kw_only=True)
@@ -31,20 +31,23 @@ class asciiHeader(genericLoggerFile):
             self.frameSize = int(header[2])
             self.val_stamp = int(header[4])        
             self.frameTime = pd.to_timedelta(self.parseFreq(header[5])).total_seconds()
-            self.variableMap = {column:{'unit':unit,
-                                        'variableDescription':aggregation,
-                                        'dtype':dtype
-                                        } for column,unit,aggregation,dtype in zip(
-                                            self.parseLine(self.fileObject.readline()),
-                                            self.parseLine(self.fileObject.readline()),
-                                            self.parseLine(self.fileObject.readline()),
-                                            self.parseLine(self.fileObject.readline()),
-                                            )}
+            self.variableMap = updateDict({column:{'unit':unit,
+                            'variableDescription':aggregation,
+                            'dtype':dtype
+                            } for column,unit,aggregation,dtype in zip(
+                                self.parseLine(self.fileObject.readline()),
+                                self.parseLine(self.fileObject.readline()),
+                                self.parseLine(self.fileObject.readline()),
+                                self.parseLine(self.fileObject.readline()),
+                                )},
+                                self.variableMap
+            )
             dtype_map_struct = {"IEEE4B": "f","IEEE8B": "d","FP2": "H"}
             self.byteMap = ''.join([dtype_map_struct[var['dtype']] for var in self.variableMap.values()])
-            self.variableMap = {var.originalName:reprToDict(var) for var in map(
-                                    lambda name: columnMap(originalName = name, **self.variableMap[name]),self.variableMap.keys()
-                                    )}
+            self.DataFrame = pd.DataFrame(columns=list(self.variableMap.keys()))
+            # self.variableMap = {var.originalName:reprToDict(var) for var in map(
+            #                         lambda name: columnMap(originalName = name, **self.variableMap[name]),self.variableMap.keys()
+            #                         )}
         else:
             return(f"filetype: {self.fileType} not supported")
         
@@ -70,19 +73,13 @@ class read(asciiHeader):
     sourceFile: str
     writeBinary: bool = False
     header: list = field(default_factory=lambda:{})
-    toArray: bool = field(default=False,repr=False)
-    Data: pd.DataFrame = field(default_factory=pd.DataFrame,repr=False)
     calcStats: list = field(default_factory=lambda:[],repr=False)
 
     def __post_init__(self):
         with open(self.sourceFile,'rb') as self.fileObject:
             super().__post_init__()
-            self.Data, self.Timestamp = self.readFrames()
-            if self.toArray:
-                self.toBinaryArray()
-            else:
-                self.toDataFrame()
-                genericLoggerFile.__post_init__(self)
+            self.readFrames()
+            genericLoggerFile.__post_init__(self)
         self.fileObject.close()
             
     def readFrames(self):
@@ -125,9 +122,9 @@ class read(asciiHeader):
         if self.verbose:
             print(f'Frames {i}')
         if i > 0:
-            return (data,np.array(Timestamp).flatten())
-        else:
-            return (None,None)
+            self.toDataFrame(data,np.array(Timestamp).flatten())
+        # else:
+        #     return (None,None)
 
     def decode_fp2(self,Body):
         # adapted from: https://github.com/ansell/camp2ascii/tree/cea750fb721df3d3ccc69fe7780b372d20a8160d
@@ -152,22 +149,19 @@ class read(asciiHeader):
         for ix in FP2_ix:
             Body[ix] = FP2_map(Body[ix])
         return(Body)
-    
-    def toBinaryArray(self):
-        self.Data = (self.Data.T).flatten().astype('float32')
 
-    def toDataFrame(self):
-        self.Data = pd.DataFrame(
-            data = self.Data,
-            index=pd.to_datetime(self.Timestamp,unit='s').round(self.frequency)
+    def toDataFrame(self,data,timestamp):
+        self.DataFrame = pd.DataFrame(
+            data = data,
+            index=pd.to_datetime(timestamp,unit='s').round(self.frequency)
             )
-        self.Data.columns = [var for var in self.variableMap]
-        self.Data.index.name = 'TIMESTAMP'
+        self.DataFrame.columns = [var for var in self.variableMap]
+        self.DataFrame.index.name = 'TIMESTAMP'
         if self.calcStats != []:
             Agg = {}
             for column in self.variableMap:
-                Agg[column] = self.Data[column].agg(self.calcStats)
-            self.Data = pd.DataFrame(
+                Agg[column] = self.DataFrame[column].agg(self.calcStats)
+            self.DataFrame = pd.DataFrame(
                 index=[self.Timestamp[-1]],
                 data = {f"{col}_{agg}":val 
                         for col in Agg.keys() 

@@ -70,22 +70,6 @@ instr_2_tau=
 instr_2_kw=
 instr_2_ko=
 
-instr_3_manufacturer=
-instr_3_model=
-instr_3_sw_version=
-instr_3_id=
-instr_3_tube_length=
-instr_3_tube_diameter=
-instr_3_tube_flowrate=
-instr_3_northward_separation=
-instr_3_eastward_separation=
-instr_3_vertical_separation=
-instr_3_vpath_length=
-instr_3_hpath_length=
-instr_3_tau=
-instr_3_kw=
-instr_3_ko=
-
 [FileDescription]
 separator=
 header_rows=

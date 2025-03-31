@@ -1,10 +1,6 @@
-
-from .defaults import * 
+from .baseMethods import * 
 import datetime
 import os
-
-
-
         
 @dataclass(kw_only=True)
 class asciiHeader(genericLoggerFile):
@@ -67,9 +63,9 @@ class read(asciiHeader):
     def __post_init__(self):
         with open(self.sourceFile) as self.fileObject:
             super().__post_init__()
-        self.Data = pd.read_csv(self.sourceFile,header=None,skiprows=4)
-        self.Data.columns = list(self.variableMap.keys())
-        self.Data = self.Data.set_index(pd.to_datetime(self.Data[self.timestampName],format='ISO8601'))
-        self.Data = self.Data.drop(columns=[self.timestampName])
+        self.DataFrame = pd.read_csv(self.sourceFile,header=None,skiprows=4)
+        self.DataFrame.columns = list(self.variableMap.keys())
+        self.DataFrame = self.DataFrame.set_index(pd.to_datetime(self.DataFrame[self.timestampName],format='ISO8601'))
+        self.DataFrame = self.DataFrame.drop(columns=[self.timestampName])
         genericLoggerFile.__post_init__(self)
             

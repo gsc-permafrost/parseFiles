@@ -1,4 +1,4 @@
-# README
+## README
 
 Written by Dr. June Skeeter
 
@@ -11,3 +11,5 @@ Supported formats from Campbell Scientific dataloggers:
 <!-- * ascii [TOA5](https://help.campbellsci.com/loggernet-manual/ln_manual/campbell_scientific_file_formats/toa5.htm?TocPath=Campbell%20Scientific%20File%20Formats%7CComputer%20File%20Data%20Formats%7CTOA5%7C_____0) -->
 
 * HOBOware csv files
+
+See templates/ for an example of desired input variables (templateInputs.yml) which correspond to the example file (templateExampleData.csv).  The input paramterss desired are common across input types, but the syntax of the input variables will depend on
