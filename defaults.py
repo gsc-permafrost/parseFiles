@@ -1,4 +1,6 @@
 import re
+import os
+import yaml
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass,field
@@ -42,9 +44,10 @@ class columnMap:
 class genericLoggerFile:
     # Important attributes to be associated with a generic logger file
     sourceFile: str = field(repr=False)
-    timezone: str = None
+    timezone: str = 'UTC'
     fileType: str = None
     frequency: str = None
+    timestampName: str = "TIMESTAMP"
     fileTimestamp: str = field(default='%Y_%m_%d_%H%M',repr=False)
     variableMap: dict = field(default_factory=lambda:{})
     Data: pd.DataFrame = field(default_factory=pd.DataFrame,repr=False)
@@ -52,8 +55,6 @@ class genericLoggerFile:
 
     def __post_init__(self):
         # Create the template column map, fill column dtype where not present 
-        # self.fileTimestamp = self.fileTimestamp.strftime(self.__dataclass_fields__['fileTimestamp'].default)
-
         # if type(self.Data) == pd.DataFrame:
         self.variableMap = {key:{'dtype':self.Data[key].dtype,'originalName':key}|self.variableMap[key] 
                                 if key in self.variableMap 
@@ -61,15 +62,31 @@ class genericLoggerFile:
                                 for key in self.Data.columns}
         self.variableMap = {var.safeName:reprToDict(var) for var in map(lambda name: columnMap(**self.variableMap[name]),self.variableMap.keys())}
 
+        if self.frequency is None:
+            self.frequency=f"{np.quantile(self.Data.index.diff().total_seconds().dropna().values,.25)}s"
+
     def applySafeNames(self):
         self.safeMap = {val['originalName']:safeName for safeName,val in self.variableMap.items()}
         self.backMap = {safeName:originalName for originalName,safeName in self.safeMap.items()}
         self.Data = self.Data.rename(columns=self.safeMap)
 
+@dataclass
+class template(genericLoggerFile):
+    sourceFile: str = field(default=os.path.join(os.path.dirname(os.path.abspath(__file__)),'templates','templateExampleData.csv'),repr=False)
+    fileType: str = 'example csv'
 
-@dataclass(kw_only=True)
-class df2binary:
-    varibleMap: None
-    dataframe: None
-    binary: None
-    dtype: str = 'float32'
+    def __post_init__(self):
+        self.Data = pd.read_csv(self.sourceFile)
+        self.Data = self.Data.set_index(pd.to_datetime(self.Data[self.timestampName],format='ISO8601'))
+        self.Data = self.Data.drop(columns=[self.timestampName])
+        super().__post_init__()
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)),'templates','templateInputs.yml'),'w+') as f:
+            yaml.safe_dump(reprToDict(self),f,sort_keys=False)
+
+            
+# @dataclass(kw_only=True)
+# class df2binary:
+#     varibleMap: None
+#     dataframe: None
+#     binary: None
+#     dtype: str = 'float32'

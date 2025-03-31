@@ -59,7 +59,6 @@ class asciiHeader(genericLoggerFile):
 @dataclass(kw_only=True)
 class read(asciiHeader):
     sourceFile: str
-    timestampName: str = field(default="TIMESTAMP",repr=False)
     header: list = field(default_factory=lambda:{})
     readData: bool = field(default=True,repr=False)
     Data: pd.DataFrame = field(default_factory=pd.DataFrame,repr=False)
@@ -72,4 +71,5 @@ class read(asciiHeader):
         self.Data.columns = list(self.variableMap.keys())
         self.Data = self.Data.set_index(pd.to_datetime(self.Data[self.timestampName],format='ISO8601'))
         self.Data = self.Data.drop(columns=[self.timestampName])
+        genericLoggerFile.__post_init__(self)
             

@@ -1,0 +1,26 @@
+timezone: UTC
+fileType: example csv
+frequency: 1800.0s
+timestampName: TIMESTAMP
+variableMap:
+  Some_integer_data:
+    originalName: Some integer data
+    ignore: false
+    unit: null
+    dtype: <i8
+    frequency: null
+    variableDescription: null
+  s_me_float_data:
+    originalName: s*me float data
+    ignore: false
+    unit: null
+    dtype: <f8
+    frequency: null
+    variableDescription: null
+  Some_text_data:
+    originalName: Some text data
+    ignore: true
+    unit: null
+    dtype: '|O'
+    frequency: null
+    variableDescription: null

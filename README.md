@@ -1,3 +1,5 @@
+# README
+
 Written by Dr. June Skeeter
 
 Scripts to parse timeseries data from assorted dataloggers in order to generate consistently formatted data with standardized metadata.
