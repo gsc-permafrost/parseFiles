@@ -164,7 +164,7 @@ class read(asciiHeader):
             for column in self.variableMap:
                 Agg[column] = self.DataFrame[column].agg(self.calcStats)
             self.DataFrame = pd.DataFrame(
-                index=[self.Timestamp[-1]],
+                index=[self.DataFrame.index[-1]],
                 data = {f"{col}_{agg}":val 
                         for col in Agg.keys() 
                         for agg,val in Agg[col].items()})
