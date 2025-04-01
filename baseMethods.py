@@ -6,38 +6,7 @@ import pandas as pd
 import zipfile
 import configparser
 from dataclasses import dataclass,field
-
-def reprToDict(dc):
-    # given a dataclass, dummp itemes where repr=true to a dictionary
-    return({k:v for k,v in dc.__dict__.items() if k in dc.__dataclass_fields__ and dc.__dataclass_fields__[k].repr})
-
-def updateDict(base,new,overwrite=False,verbose=False):
-    if base == new: return(base)
-    # more comprehensive way to update items in a nested dict
-    for key,value in new.items():
-        if type(base) is dict and key not in base.keys():
-            if verbose: print('setting: ',key,' = ',base,'\n to: ',key,' = ',value)
-            base[key]=value
-        elif type(value) is dict and type(base[key]) is dict:
-            base[key] = updateDict(base[key],value,overwrite,verbose)
-        elif overwrite == True and base[key]!= value:
-            if verbose: print('setting: ',key,' = ',base[key],'\n to: ',key,' = ',value)
-            base[key] = value
-        elif overwrite == 'append' and type(base[key]) is list:
-            if type(base[key][0]) is not list and type(value) is list:
-                base[key] = [base[key]]
-            if verbose: print('adding: ',value,'\n to: ',key,' = ',base[key])
-            base[key].append(value)
-        elif overwrite == 'append' and type(base[key]) is not list:
-            base[key] = [base[key]]
-            if verbose: print('adding: ',value,'\n to: ',key,' = ',base[key])
-            base[key].append(value)
-        elif base[key] is None and value is not None:
-            if verbose: print('setting: ',key,' = ',base[key],'\n to: ',key,' = ',value)
-            base[key] = value
-        elif base[key] != value:
-            if verbose: print(f'overwrite = {overwrite} will not update matching keys: ',base[key],value)
-    return(base) 
+from .helperFunctions.reprToDict import reprToDict
 
 @dataclass(kw_only=True)
 class columnMap:

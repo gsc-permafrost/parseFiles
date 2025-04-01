@@ -1,5 +1,7 @@
 
 from .baseMethods import * 
+from .helperFunctions.updateDict import updateDict
+from .helperFunctions.reprToDict import reprToDict
 import struct
 
 @dataclass(kw_only=True)
