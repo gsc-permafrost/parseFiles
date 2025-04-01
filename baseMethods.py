@@ -3,7 +3,6 @@ import os
 import yaml
 import numpy as np
 import pandas as pd
-import zipfile
 import configparser
 from dataclasses import dataclass,field
 from .helperFunctions.reprToDict import reprToDict
