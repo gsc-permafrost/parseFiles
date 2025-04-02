@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import configparser
 from dataclasses import dataclass,field
-from .helperFunctions.reprToDict import reprToDict
+from .helperFunctions.asdict_repr import asdict_repr
 
 @dataclass(kw_only=True)
 class columnMap:
@@ -61,7 +61,7 @@ class genericLoggerFile:
                                 if key in self.variableMap 
                                 else {'dtype':self.DataFrame[key].dtype,'originalName':key} 
                                 for key in self.DataFrame.columns}
-        self.variableMap = {var.safeName:reprToDict(var) for var in map(lambda name: columnMap(**self.variableMap[name]),self.variableMap.keys())}
+        self.variableMap = {var.safeName:asdict_repr(var) for var in map(lambda name: columnMap(**self.variableMap[name]),self.variableMap.keys())}
         if self.frequency is None:
             self.frequency=f"{np.quantile(self.DataFrame.index.diff().total_seconds().dropna().values,.25)}s"
         self.fileTimestamp = self.fileTimestamp.strftime(format=self.__dataclass_fields__['fileTimestamp'].default)
@@ -72,7 +72,6 @@ class genericLoggerFile:
         self.safeMap = {val['originalName']:safeName for safeName,val in self.variableMap.items()}
         self.backMap = {safeName:originalName for originalName,safeName in self.safeMap.items()}
         self.DataFrame = self.DataFrame.rename(columns=self.safeMap)
-
 
 @dataclass
 class template(genericLoggerFile):
@@ -85,9 +84,8 @@ class template(genericLoggerFile):
         self.DataFrame = self.DataFrame.drop(columns=[self.timestampName])
         super().__post_init__()
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)),'templates','templateInputs.yml'),'w+') as f:
-            yaml.safe_dump(reprToDict(self),f,sort_keys=False)
-
-            
+            yaml.safe_dump(asdict_repr(self),f,sort_keys=False)
+          
 @dataclass(kw_only=True)
 class binBundle:
     variableMap:str = None

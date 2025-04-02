@@ -1,7 +1,6 @@
 
 from .baseMethods import * 
 from .helperFunctions.updateDict import updateDict
-from .helperFunctions.reprToDict import reprToDict
 import struct
 
 @dataclass(kw_only=True)
@@ -47,9 +46,6 @@ class asciiHeader(genericLoggerFile):
             dtype_map_struct = {"IEEE4B": "f","IEEE8B": "d","FP2": "H"}
             self.byteMap = ''.join([dtype_map_struct[var['dtype']] for var in self.variableMap.values()])
             self.DataFrame = pd.DataFrame(columns=list(self.variableMap.keys()))
-            # self.variableMap = {var.originalName:reprToDict(var) for var in map(
-            #                         lambda name: columnMap(originalName = name, **self.variableMap[name]),self.variableMap.keys()
-            #                         )}
         else:
             return(f"filetype: {self.fileType} not supported")
         
