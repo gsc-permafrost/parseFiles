@@ -68,7 +68,6 @@ class asciiHeader(genericLoggerFile):
 
 @dataclass(kw_only=True)
 class read(asciiHeader):
-    sourceFile: str
     writeBinary: bool = False
     header: list = field(default_factory=lambda:{})
     calcStats: list = field(default_factory=lambda:[],repr=False)
