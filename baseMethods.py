@@ -6,6 +6,7 @@ import pandas as pd
 import configparser
 from dataclasses import dataclass,field
 from .helperFunctions.asdict_repr import asdict_repr
+from .helperFunctions.log import log
 
 @dataclass(kw_only=True)
 class columnMap:
@@ -20,6 +21,8 @@ class columnMap:
     frequency: str = None
     variableDescription: str = None
     verbose: bool = field(default=False,repr=False)
+    dropCols: list = field(default_factory=lambda:[],repr=False)
+
     def __post_init__(self):
         if self.originalName is not None:
             if self.safeName is None:
@@ -39,6 +42,8 @@ class columnMap:
                 self.ignore = True
             if self.safeName != self.originalName and self.verbose:
                 print(['Re-named: ',self.originalName,' to: ',self.safeName])
+            if self.originalName in self.dropCols or self.safeName in self.dropCols:
+                self.ignore = True
         
 @dataclass(kw_only=True)
 class genericLoggerFile:
@@ -53,6 +58,7 @@ class genericLoggerFile:
     DataFrame: pd.DataFrame = field(default_factory=pd.DataFrame,repr=False)
     verbose: bool = field(default=False,repr=False)
     binZip: bool = field(default=False,repr=False)
+    dropCols: list = field(default_factory=lambda:[],repr=False)
 
     def __post_init__(self):
         # Create the template column map, fill column dtype where not present 
@@ -61,7 +67,7 @@ class genericLoggerFile:
                                 if key in self.variableMap 
                                 else {'dtype':self.DataFrame[key].dtype,'originalName':key} 
                                 for key in self.DataFrame.columns}
-        self.variableMap = {var.safeName:asdict_repr(var) for var in map(lambda name: columnMap(**self.variableMap[name]),self.variableMap.keys())}
+        self.variableMap = {var.safeName:asdict_repr(var) for var in map(lambda name: columnMap(dropCols=self.dropCols,**self.variableMap[name]),self.variableMap.keys())}
         if self.frequency is None:
             self.frequency=f"{np.quantile(self.DataFrame.index.diff().total_seconds().dropna().values,.25)}s"
         self.fileTimestamp = self.fileTimestamp.strftime(format=self.__dataclass_fields__['fileTimestamp'].default)
@@ -106,8 +112,9 @@ class binBundle:
     DataFrame:pd.DataFrame = None
     filename:str = None
     Metadata: configparser.ConfigParser = field(default_factory=lambda:configparser.ConfigParser())
-    # Metadata: dict = field(default=os.path.join(os.path.dirname(os.path.abspath(__file__)),'parseFiles','config_files','ep_md_template.metadata'))
+    outputPath: str = None
     dtype: str = 'float32'
+    verbose: bool = True
 
     def __post_init__(self):
         self.templateMD = configparser.ConfigParser()
@@ -116,9 +123,29 @@ class binBundle:
         for key in self.templateMD:
             self.Metadata.add_section(key)
 
-        keep = [col for col,md in self.variableMap.items() if not md['ignore']]
-        self.binZipOut = {
+        # keep = [col for col,md in self.variableMap.items() if not md['ignore']]
+        keep = self.find_f32()
+        self.bundleOut = {
             f'{self.filename}.metadata':{col:self.variableMap[col] for col in keep},
-            f'{self.filename}.POSIX_timestamp':self.DataFrame.index.values.astype(np.float64)/10**9,
-            f'{self.filename}.float32_array':self.DataFrame[keep].values.T.flatten().astype('float32')
+            f'{self.filename}.tsf64':self.DataFrame.index.values.astype(np.float64)/10**9,
+            f'{self.filename}.ecf32':self.DataFrame[keep].values.T.flatten().astype('float32')
         }
+        fn = f'{self.filename}.metadata'
+        f = os.path.join(self.outputPath,fn)
+        with open(f,'w') as out:
+            yaml.safe_dump(self.bundleOut[fn],out,sort_keys=False)
+        fn = f'{self.filename}.tsf64'
+        f = os.path.join(self.outputPath,fn)
+        self.bundleOut[fn].tofile(f)
+        fn = f'{self.filename}.ecf32'
+        f = os.path.join(self.outputPath,fn)
+        self.bundleOut[fn].tofile(f)
+
+        
+    def find_f32(self):
+        log('Restricting to f32, remember to implement fix elsewhere in toolchain so this is not needed in the future',verbose=self.verbose)
+        cols = []
+        for c,m in self.variableMap.items():
+            if m['dtype'] == '<f4' and not m['ignore']:
+                cols.append(c)
+        return(cols)

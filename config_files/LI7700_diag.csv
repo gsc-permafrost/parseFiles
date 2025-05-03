@@ -1,0 +1,17 @@
+Diagnostics,Integer,Meaning
+NOTREADY,32768,Instrument is not ready
+NOSIGNAL,16384,No laser signal detected
+REFUNLOCKED,8192,Reference methane signal not locked
+BADTEMP,4096,Optical path thermocouple failure
+LASERTEMPUNREGULATED,2048,Laser cooler unregulated
+BLOCKTEMPUNREGULATED,1024,Block temperature unregulated
+MOTORSPINNING,512,Lower mirror spin motor on
+PUMPON,256,Washer pump motor running
+TOPHEATERON,128,Upper mirror heater on
+BOTTOMHEATERON,64,Lower mirror heater on
+CALIBRATING,32,Calibration in process
+MOTORFAILURE,16,Mirror cleaner motor failure
+BADAUXTC1,8,Bad thermocouple values
+BADAUXTC2,4,Bad thermocouple values
+BADAUXTC3,2,Bad thermocouple values
+BOXCONNECTED,1,LI-7550 Attached
