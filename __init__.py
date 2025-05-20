@@ -1,4 +1,7 @@
 #parsefiles/__init__.py
-
-from . import parseCSI
-from . import parseCSV
+try:
+    from . import parseCSI
+    from . import parseCSV
+except:
+    import parseCSI
+    import parseCSV
