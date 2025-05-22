@@ -1,5 +1,11 @@
-from .helperFunctions.updateDict import updateDict
-from .baseMethods import * 
+try:
+    # relative import for use as submodules
+    from .helperFunctions.updateDict import updateDict
+    from .baseMethods import * 
+except:
+    # absolute import for use as standalone
+    from helperFunctions.updateDict import updateDict
+    from baseMethods import * 
 import datetime
 import struct
 import os
@@ -62,14 +68,14 @@ class asciiHeader(genericLoggerFile):
             return(f"filetype: {self.fileType} not supported")
         
     def parseLine(self,line):
-        if type(line) == 'str':
+        if type(line) == str:
             return(line.strip().replace('"','').split(','))
         else:
             return(line.decode('ascii').strip().replace('"','').split(','))
 
 @dataclass(kw_only=True)
 class parseTOA5(asciiHeader):
-    sourceFile: str
+    # sourceFile: str
     header: list = field(default_factory=lambda:{})
     readData: bool = field(default=True,repr=False)
     Data: pd.DataFrame = field(default_factory=pd.DataFrame,repr=False)

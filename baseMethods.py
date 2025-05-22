@@ -5,11 +5,18 @@ import numpy as np
 import pandas as pd
 import configparser
 from dataclasses import dataclass,field
-from .helperFunctions.asdict_repr import asdict_repr
-from .helperFunctions.log import log
+try:
+    # relative import for use as submodules
+    from .helperFunctions.asdict_repr import asdict_repr
+    from .helperFunctions.log import log
+except:
+    # absolute import for use as standalone
+    from helperFunctions.asdict_repr import asdict_repr
+    from helperFunctions.log import log
+    
 
 @dataclass(kw_only=True)
-class columnMap:
+class _variableMap:
     dtype_map_numpy = {"IEEE4B": "float32","IEEE8B": "float64","FP2": "float16"}
     fillChar = '_'
     originalName: str
@@ -18,7 +25,7 @@ class columnMap:
     instrument: str = None
     unit: str = None
     dtype: str = None
-    frequency: str = None
+    # frequency: str = None (I think this was put in as typo, will remove later if nothing breaks)
     variableDescription: str = None
     verbose: bool = field(default=False,repr=False)
     dropCols: list = field(default_factory=lambda:[],repr=False)
@@ -67,10 +74,12 @@ class genericLoggerFile:
                                 if key in self.variableMap 
                                 else {'dtype':self.DataFrame[key].dtype,'originalName':key} 
                                 for key in self.DataFrame.columns}
-        self.variableMap = {var.safeName:asdict_repr(var) for var in map(lambda name: columnMap(dropCols=self.dropCols,**self.variableMap[name]),self.variableMap.keys())}
+        self.variableMap = {var.safeName:asdict_repr(var) for var in map(lambda name: _variableMap(dropCols=self.dropCols,**self.variableMap[name]),self.variableMap.keys())}
         if self.frequency is None:
-            self.frequency=f"{np.quantile(self.DataFrame.index.diff().total_seconds().dropna().values,.25)}s"
-        self.fileTimestamp = self.fileTimestamp.strftime(format=self.__dataclass_fields__['fileTimestamp'].default)
+            if isinstance(self.DataFrame.index, pd.DatetimeIndex) and self.DataFrame.index.shape[0]>0:
+                self.frequency=f"{np.quantile(self.DataFrame.index.diff().total_seconds().dropna().values,.25)}s"
+        if self.fileTimestamp != self.__dataclass_fields__['fileTimestamp'].default:
+            self.fileTimestamp = self.fileTimestamp.strftime(format=self.__dataclass_fields__['fileTimestamp'].default)
         if self.binZip:
             print('call')
 

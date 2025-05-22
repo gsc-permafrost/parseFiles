@@ -1,6 +1,10 @@
-# from . import defaults
-from .baseMethods import * 
-
+try:
+    # relative import for use as submodules
+    from .baseMethods import * 
+except:
+    # absolute import for use as standalone
+    from baseMethods import * 
+    
 @dataclass(kw_only=True)
 class genericCSV(genericLoggerFile):
     timestampName: str #= "Date Time, GMT+00:00"
