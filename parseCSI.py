@@ -1,71 +1,75 @@
 try:
     # relative import for use as submodules
-    from .helperFunctions.updateDict import updateDict
     from .baseMethods import * 
 except:
     # absolute import for use as standalone
-    from helperFunctions.updateDict import updateDict
     from baseMethods import * 
 import datetime
 import struct
 import os
 
+fileClass = 'CSI'
+
+
 @dataclass(kw_only=True)
 class asciiHeader(genericLoggerFile):
     fileObject: object = field(default=None,repr=False)
-    header: list = field(default_factory=lambda:[],repr=False)
-    fileType: str = None
+    preamble: list = field(default_factory=lambda:[],repr=False)
     StationName: str = None
     LoggerModel: str = None
     SerialNo: str = None
     program: str = None
     frequency: str = None
     Table: str = None
-    variableMap: dict = field(default_factory=lambda:{})
     byteMap: str = None
+    summaryStats: list = field(default_factory=lambda:[],repr=False)
+    writeBinary: bool = False
 
     def __post_init__(self):
-        header = self.parseLine(self.fileObject.readline())
-        self.fileType = header[0]
-        self.Type=header[0]
-        self.StationName=header[1]
-        self.LoggerModel=header[2]
-        self.SerialNo=header[3]
+        self.preamble = self.parseLine(self.fileObject.readline())
+        self.fileType = self.preamble[0]
+        if self.fileType != self.__class__.__name__:
+            sys.exit(f"error: {__name__}.{self.__class__.__name__} does not support {self.sourceFile}")
+        self.StationName=self.preamble[1]
+        self.LoggerModel=self.preamble[2]
+        self.SerialNo=self.preamble[3]
         if self.fileType == 'TOA5':
-            self.Table = header[-1]
-            self.variableMap = {column:{'unit':unit,
-                                        'variableDescription':aggregation
-                                        } for column,unit,aggregation in zip(
-                                            self.parseLine(self.fileObject.readline()),
-                                            self.parseLine(self.fileObject.readline()),
-                                            self.parseLine(self.fileObject.readline()),
-                                            )}
+            self.Table = self.preamble[-1]
+            self.variableMap = updateDict(
+                {column:{
+                    'unit':unit,
+                    'variableDescription':aggregation
+                    } 
+                    for column,unit,aggregation in zip(
+                        self.parseLine(self.fileObject.readline()),
+                        self.parseLine(self.fileObject.readline()),
+                        self.parseLine(self.fileObject.readline()),
+                    )},self.variableMap,overwrite=True)
             f = os.path.split(self.fileObject.name)[-1]
             self.fileTimestamp = pd.to_datetime(datetime.datetime.strptime(re.search(r'([0-9]{4}\_[0-9]{2}\_[0-9]{2}\_[0-9]{4})', f.rsplit('.',1)[0]).group(0),'%Y_%m_%d_%H%M'))
         elif self.fileType == 'TOB3':
-            self.fileTimestamp = pd.to_datetime(header[-1])
-            header = self.parseLine(self.fileObject.readline())
-            self.Table = header[0]
-            self.frequency = f"{pd.to_timedelta(self.parseFreq(header[1])).total_seconds()}s"
-            self.frameSize = int(header[2])
-            self.val_stamp = int(header[4])        
-            self.frameTime = pd.to_timedelta(self.parseFreq(header[5])).total_seconds()
-            self.variableMap = updateDict({column:{'unit':unit,
-                            'variableDescription':aggregation,
-                            'dtype':dtype
-                            } for column,unit,aggregation,dtype in zip(
-                                self.parseLine(self.fileObject.readline()),
-                                self.parseLine(self.fileObject.readline()),
-                                self.parseLine(self.fileObject.readline()),
-                                self.parseLine(self.fileObject.readline()),
-                                )},
-                                self.variableMap
-            )
+            self.fileTimestamp = pd.to_datetime(self.preamble[-1])
+            self.preamble = self.parseLine(self.fileObject.readline())
+            self.Table = self.preamble[0]
+            self.frequency = f"{pd.to_timedelta(self.parseFreq(self.preamble[1])).total_seconds()}s"
+            self.frameSize = int(self.preamble[2])
+            self.val_stamp = int(self.preamble[4])        
+            self.frameTime = pd.to_timedelta(self.parseFreq(self.preamble[5])).total_seconds()
+            self.variableMap = updateDict(
+                {column:{
+                    'unit':unit,
+                    'variableDescription':aggregation,
+                    'dtype':dtype
+                    }
+                    for column,unit,aggregation,dtype in zip(
+                        self.parseLine(self.fileObject.readline()),
+                        self.parseLine(self.fileObject.readline()),
+                        self.parseLine(self.fileObject.readline()),
+                        self.parseLine(self.fileObject.readline()),
+                    )},self.variableMap,overwrite=True)
             dtype_map_struct = {"IEEE4B": "f","IEEE8B": "d","FP2": "H"}
             self.byteMap = ''.join([dtype_map_struct[var['dtype']] for var in self.variableMap.values()])
             self.DataFrame = pd.DataFrame(columns=list(self.variableMap.keys()))    
-        else:
-            return(f"filetype: {self.fileType} not supported")
         
     def parseLine(self,line):
         if type(line) == str:
@@ -74,14 +78,10 @@ class asciiHeader(genericLoggerFile):
             return(line.decode('ascii').strip().replace('"','').split(','))
 
 @dataclass(kw_only=True)
-class parseTOA5(asciiHeader):
-    # sourceFile: str
-    header: list = field(default_factory=lambda:{})
-    readData: bool = field(default=True,repr=False)
-    Data: pd.DataFrame = field(default_factory=pd.DataFrame,repr=False)
-    calcStats: list = field(default_factory=lambda:[],repr=False)
+class TOA5(asciiHeader):
 
     def __post_init__(self):
+        self.preCheck()
         with open(self.sourceFile) as self.fileObject:
             super().__post_init__()
         self.DataFrame = pd.read_csv(self.sourceFile,header=None,skiprows=4)
@@ -92,10 +92,7 @@ class parseTOA5(asciiHeader):
 
 
 @dataclass(kw_only=True)
-class parseTOB3(asciiHeader):
-    writeBinary: bool = False
-    header: list = field(default_factory=lambda:{})
-    calcStats: list = field(default_factory=lambda:[],repr=False)
+class TOB3(asciiHeader):
 
     def __post_init__(self):
         with open(self.sourceFile,'rb') as self.fileObject:
@@ -179,10 +176,10 @@ class parseTOB3(asciiHeader):
             )
         self.DataFrame.columns = [var for var in self.variableMap]
         self.DataFrame.index.name = 'TIMESTAMP'
-        if self.calcStats != []:
+        if self.summaryStats != []:
             Agg = {}
             for column in self.variableMap:
-                Agg[column] = self.DataFrame[column].agg(self.calcStats)
+                Agg[column] = self.DataFrame[column].agg(self.summaryStats)
             self.DataFrame = pd.DataFrame(
                 index=[self.DataFrame.index[-1]],
                 data = {f"{col}_{agg}":val 

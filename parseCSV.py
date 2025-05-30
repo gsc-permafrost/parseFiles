@@ -7,7 +7,7 @@ except:
     
 @dataclass(kw_only=True)
 class genericCSV(genericLoggerFile):
-    timestampName: str #= "Date Time, GMT+00:00"
+    timestampName: str #= "TIMESTAMP"
     timestampFormat: str #= "%y/%m/%d %H:%M:%S"
     skiprows: int = 0
     statusCols: list = field(default_factory=lambda:['Host Connected', 'Stopped', 'End Of File'],repr=False)
@@ -34,12 +34,11 @@ class genericCSV(genericLoggerFile):
             self.DataFrame.index = pd.to_datetime(self.DataFrame.index,format=self.timestampFormat)
             self.timestampName = ' '.join(self.DataFrame.columns[cix])
         self.fileTimestamp = pd.to_datetime(self.DataFrame.index[-1])
-        
         super().__post_init__()
         self.applySafeNames()
 
 @dataclass(kw_only=True)
-class hoboCSV(genericCSV):
+class HOBO(genericCSV):
     timestampName: str = "Date Time"
     timestampFormat: str = "%y/%m/%d %H:%M:%S"
     skiprows: int = 1

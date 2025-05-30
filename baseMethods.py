@@ -1,5 +1,6 @@
 import re
 import os
+import sys
 import yaml
 import numpy as np
 import pandas as pd
@@ -8,24 +9,38 @@ from dataclasses import dataclass,field
 try:
     # relative import for use as submodules
     from .helperFunctions.asdict_repr import asdict_repr
+    from .helperFunctions.updateDict import updateDict
     from .helperFunctions.log import log
 except:
     # absolute import for use as standalone
     from helperFunctions.asdict_repr import asdict_repr
+    from helperFunctions.updateDict import updateDict
     from helperFunctions.log import log
     
+@dataclass(kw_only=True)
+class _metadata:
+    # northOffset: float = None
+    # Latitude: float = None
+    # Longitude: float = None
+    # Elevation: float = None
+    # variableMap: dict = None
+
+    def __init__(self,northOffset: float = None,Latitude: float = None,Longitude: float = None,Elevation: float = None,variableMap: dict = None):
+        print(self.variableMap)
 
 @dataclass(kw_only=True)
 class _variableMap:
+    # map non-standard dtype names 
     dtype_map_numpy = {"IEEE4B": "float32","IEEE8B": "float64","FP2": "float16"}
+    # default fill for safeName
     fillChar = '_'
-    originalName: str
-    safeName: str = field(default=None,repr=False)
+    # dataclass fields
+    originalName: str = None
+    safeName: str = None
     ignore: bool = None
-    instrument: str = None
+    sensor: str = None
     unit: str = None
     dtype: str = None
-    # frequency: str = None (I think this was put in as typo, will remove later if nothing breaks)
     variableDescription: str = None
     verbose: bool = field(default=False,repr=False)
     dropCols: list = field(default_factory=lambda:[],repr=False)
@@ -35,7 +50,7 @@ class _variableMap:
             if self.safeName is None:
                 self.safeName = re.sub('[^0-9a-zA-Z]+',self.fillChar,self.originalName)
             else:
-                self.safeName = self.safeName.rstrip('_')
+                self.safeName = re.sub('[^0-9a-zA-Z]+',self.fillChar,self.safeName)
             if self.dtype is not None:
                 if self.dtype in self.dtype_map_numpy:
                     self.dtype = np.dtype(self.dtype_map_numpy[self.dtype])
@@ -53,7 +68,7 @@ class _variableMap:
                 self.ignore = True
         
 @dataclass(kw_only=True)
-class genericLoggerFile:
+class genericLoggerFile(_metadata):
     # Important attributes to be associated with a generic logger file
     sourceFile: str = field(repr=False)
     timezone: str = 'UTC'
@@ -67,13 +82,22 @@ class genericLoggerFile:
     binZip: bool = field(default=False,repr=False)
     dropCols: list = field(default_factory=lambda:[],repr=False)
 
+    # def __init__(self):
+    #     print(self)
+    def preCheck(self):
+        print('CHodeIE')
+
     def __post_init__(self):
         # Create the template column map, fill column dtype where not present 
-    
-        self.variableMap = {key:{'dtype':self.DataFrame[key].dtype,'originalName':key}|self.variableMap[key] 
-                                if key in self.variableMap 
-                                else {'dtype':self.DataFrame[key].dtype,'originalName':key} 
-                                for key in self.DataFrame.columns}
+        if self.fileType is None:
+            self.fileType=self.__class__.__name__
+        self.variableMap = updateDict(
+            {key:{
+                'dtype':self.DataFrame[key].dtype,'originalName':key}|self.variableMap[key] 
+                if key in self.variableMap else 
+                {'dtype':self.DataFrame[key].dtype,'originalName':key} 
+                for key in self.DataFrame.columns},self.variableMap#,overwrite=overwrite
+        )
         self.variableMap = {var.safeName:asdict_repr(var) for var in map(lambda name: _variableMap(dropCols=self.dropCols,**self.variableMap[name]),self.variableMap.keys())}
         if self.frequency is None:
             if isinstance(self.DataFrame.index, pd.DatetimeIndex) and self.DataFrame.index.shape[0]>0:

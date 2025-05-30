@@ -38,4 +38,8 @@ See templates/ for an example of desired input variables (templateInputs.yml) wh
 
 5. Install the required libraries:
 
-`pip install -r requirments.txt`
+`pip install -r requirements.txt`
+
+6. To see some examples of how to use the scripts in this repo, see ExampleUse.ipynb.
+
+* Make sure to run select the correct kernel in Jupyter Notebook to match your virtual environment (venv)

@@ -1,0 +1,24 @@
+"Temp, \xB0C (LGR S/N: 20750528, SEN S/N: 20750528, LBL: 5)":
+  safeName: TS 5cm
+  unit: degC
+  variableDescription: Soil temperature profile, 5cm depth, Swiss Cheese Lake Salix
+    Sedge Meadow Site
+  sensor: Thermocouple
+"Temp, \xB0C (LGR S/N: 20750528, SEN S/N: 20750528, LBL: 25)":
+  safeName: TS 25cm
+  unit: degC
+  variableDescription: Soil temperature profile, 5cm depth, Swiss Cheese Lake Salix
+    Sedge Meadow Site
+  sensor: Thermocouple
+"Temp, \xB0C (LGR S/N: 20750528, SEN S/N: 20750528, LBL: 50)":
+  safeName: TS 50cm
+  unit: degC
+  variableDescription: Soil temperature profile, 5cm depth, Swiss Cheese Lake Salix
+    Sedge Meadow Site
+  sensor: Thermocouple
+"Temp, \xB0C (LGR S/N: 20750528, SEN S/N: 20750528, LBL: 100)":
+  safeName: TS 100cm
+  unit: degC
+  variableDescription: Soil temperature profile, 5cm depth, Swiss Cheese Lake Salix
+    Sedge Meadow Site
+  sensor: Thermocouple
