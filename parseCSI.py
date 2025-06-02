@@ -26,6 +26,9 @@ class asciiHeader(genericLoggerFile):
     writeBinary: bool = False
 
     def __post_init__(self):
+        super().__post_init__()
+
+    def parseHeader(self):
         self.preamble = self.parseLine(self.fileObject.readline())
         self.fileType = self.preamble[0]
         if self.fileType != self.__class__.__name__:
@@ -81,24 +84,25 @@ class asciiHeader(genericLoggerFile):
 class TOA5(asciiHeader):
 
     def __post_init__(self):
-        self.preCheck()
+        super().__post_init__()
         with open(self.sourceFile) as self.fileObject:
-            super().__post_init__()
+            self.parseHeader()
         self.DataFrame = pd.read_csv(self.sourceFile,header=None,skiprows=4)
         self.DataFrame.columns = list(self.variableMap.keys())
         self.DataFrame = self.DataFrame.set_index(pd.to_datetime(self.DataFrame[self.timestampName],format='ISO8601'))
         self.DataFrame = self.DataFrame.drop(columns=[self.timestampName])
-        genericLoggerFile.__post_init__(self)
+        self.standardize()
 
 
 @dataclass(kw_only=True)
 class TOB3(asciiHeader):
 
     def __post_init__(self):
+        super().__post_init__()
         with open(self.sourceFile,'rb') as self.fileObject:
-            super().__post_init__()
+            self.parseHeader()
             self.readFrames()
-            genericLoggerFile.__post_init__(self)
+            self.standardize()
         self.fileObject.close()
             
     def readFrames(self):

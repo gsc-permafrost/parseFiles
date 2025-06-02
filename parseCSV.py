@@ -13,6 +13,7 @@ class genericCSV(genericLoggerFile):
     statusCols: list = field(default_factory=lambda:['Host Connected', 'Stopped', 'End Of File'],repr=False)
 
     def __post_init__(self):
+        super().__post_init__()
         rawFile = open(self.sourceFile,'r',encoding='utf-8-sig')
         T = []
         for i in range(self.skiprows):
@@ -34,7 +35,7 @@ class genericCSV(genericLoggerFile):
             self.DataFrame.index = pd.to_datetime(self.DataFrame.index,format=self.timestampFormat)
             self.timestampName = ' '.join(self.DataFrame.columns[cix])
         self.fileTimestamp = pd.to_datetime(self.DataFrame.index[-1])
-        super().__post_init__()
+        self.standardize()
         self.applySafeNames()
 
 @dataclass(kw_only=True)

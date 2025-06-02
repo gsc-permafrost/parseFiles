@@ -9,24 +9,24 @@ from dataclasses import dataclass,field
 try:
     # relative import for use as submodules
     from .helperFunctions.asdict_repr import asdict_repr
+    from .helperFunctions.loadDict import loadDict
     from .helperFunctions.updateDict import updateDict
     from .helperFunctions.log import log
 except:
     # absolute import for use as standalone
     from helperFunctions.asdict_repr import asdict_repr
+    from helperFunctions.loadDict import loadDict
     from helperFunctions.updateDict import updateDict
     from helperFunctions.log import log
     
 @dataclass(kw_only=True)
 class _metadata:
-    # northOffset: float = None
-    # Latitude: float = None
-    # Longitude: float = None
-    # Elevation: float = None
-    # variableMap: dict = None
+    northOffset: float = None
+    Latitude: float = None
+    Longitude: float = None
+    Elevation: float = None
+    variableMap: dict = None
 
-    def __init__(self,northOffset: float = None,Latitude: float = None,Longitude: float = None,Elevation: float = None,variableMap: dict = None):
-        print(self.variableMap)
 
 @dataclass(kw_only=True)
 class _variableMap:
@@ -82,12 +82,12 @@ class genericLoggerFile(_metadata):
     binZip: bool = field(default=False,repr=False)
     dropCols: list = field(default_factory=lambda:[],repr=False)
 
-    # def __init__(self):
-    #     print(self)
-    def preCheck(self):
-        print('CHodeIE')
-
     def __post_init__(self):
+        if type(self.variableMap) is str and os.path.isfile(self.variableMap):
+            self.variableMap = loadDict(self.variableMap)
+        pass
+
+    def standardize(self):
         # Create the template column map, fill column dtype where not present 
         if self.fileType is None:
             self.fileType=self.__class__.__name__
