@@ -1,0 +1,108 @@
+9/13/2024
+16:48:28
+Created by Short Cut (4.4)
+Short Cut Program:  OverWinter.DEF
+
+-Wiring for CR10X-
+
+  VoltsDiff (1)
+    G:  Shield
+    1H:  High
+    1L:  Low
+
+  VoltsDiff (2)
+    G:  Shield
+    2H:  High
+    2L:  Low
+
+  NR-LITE (NWSC)
+    G:  Clear
+    3H:  White
+    3L:  Green
+    3L:  Jumper to AG
+    AG:  Jumper to 3L
+
+  LI200X
+    G:  Clear
+    AG:  White
+    4H:  Red
+    4L:  Black
+
+  HMP155 (CP)
+    G:  Clear
+    AG:  White
+    AG:  Black
+    5H:  Yellow
+    5L:  Blue
+    12V:  Red
+
+  SDI-12
+    G:  Ground
+    G:  Shield
+    C1:  Data Line
+    12V:  Power
+
+-Measurement Labels-
+
+  Default
+    1  BattV
+    2  ProgSig
+
+  VoltsDiff (1)
+    23  Current
+
+  VoltsDiff (2)
+    24  Voltage
+
+  NR-LITE (NWSC)
+    25  NR_Wm2
+
+  LI200X
+    26  SlrW
+    27  SlrMJ
+
+  HMP155 (CP)
+    28  AirTC
+    29  RH
+
+  SDI-12
+    30  Pressure
+    31  Temp
+    32  QC
+    33  Res4
+    34  Res5
+    35  Res6
+    36  Res7
+    37  Res8
+    38  Res9
+
+  Internal Temp
+    39  ITemp_C
+
+-Star 4 Table Entries-
+
+  Scan Rate:  0
+  SDI-12 Sensor
+    SDI_Address:  1
+    SDI_Address:  1
+    SDI_Address:  1
+    SDI_Address:  1
+    SDI_Address:  1
+    SDI_Address:  1
+
+101 Output_Table  30.00 Min
+1 101 L
+2 Year_RTM  L
+3 Day_RTM  L
+4 Hour_Minute_RTM  L
+5 BattV_AVG  L
+6 Current_AVG  L
+7 Voltage_AVG  L
+8 NR_Wm2_AVG  L
+9 SlrW_AVG  L
+10 AirTC_AVG  L
+11 RH  L
+12 Pressure_AVG  L
+13 ITemp_C_AVG  L
+
+Estimated final storage locations used per day:     624

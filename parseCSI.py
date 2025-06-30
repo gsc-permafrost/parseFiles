@@ -8,9 +8,6 @@ import datetime
 import struct
 import os
 
-fileClass = 'CSI'
-
-
 @dataclass(kw_only=True)
 class asciiHeader(genericLoggerFile):
     fileObject: object = field(default=None,repr=False)
@@ -54,10 +51,10 @@ class asciiHeader(genericLoggerFile):
             self.fileTimestamp = pd.to_datetime(self.preamble[-1])
             self.preamble = self.parseLine(self.fileObject.readline())
             self.Table = self.preamble[0]
-            self.frequency = f"{pd.to_timedelta(self.parseFreq(self.preamble[1])).total_seconds()}s"
+            self.frequency = f"{pd.to_timedelta(parseFrequency(self.preamble[1])).total_seconds()}s"
             self.frameSize = int(self.preamble[2])
             self.val_stamp = int(self.preamble[4])        
-            self.frameTime = pd.to_timedelta(self.parseFreq(self.preamble[5])).total_seconds()
+            self.frameTime = pd.to_timedelta(parseFrequency(self.preamble[5])).total_seconds()
             self.variableMap = updateDict(
                 {column:{
                     'unit':unit,
@@ -92,7 +89,6 @@ class TOA5(asciiHeader):
         self.DataFrame = self.DataFrame.set_index(pd.to_datetime(self.DataFrame[self.timestampName],format='ISO8601'))
         self.DataFrame = self.DataFrame.drop(columns=[self.timestampName])
         self.standardize()
-
 
 @dataclass(kw_only=True)
 class TOB3(asciiHeader):
@@ -189,3 +185,109 @@ class TOB3(asciiHeader):
                 data = {f"{col}_{agg}":val 
                         for col in Agg.keys() 
                         for agg,val in Agg[col].items()})
+
+@dataclass(kw_only=True)
+class mixedArray():
+    # Converts a mixed array to a TOA5 file for standardized processing
+    DAT_file: str = field(repr=False) 
+    DEF_file: str = field(repr=False)
+    ArrayDefs: dict = field(default_factory=lambda: {'Timestamp': '', 'Program': '', 'Model': '', 'Table': {}}, repr=False)
+    Tables: dict = field(default_factory=lambda: {}, repr=False)
+    verbose: bool = field(default=False, repr=False)
+    saveTOA5: bool = field(default=False, repr=False)
+
+    def __post_init__(self):
+        # read the mixed array
+        f = open(self.DAT_file, 'r', encoding='utf-8-sig')
+        self.MA = [l.rstrip('\n').split(',') for l in f.readlines()]
+        f.close()
+        # read the DEF file
+        f = open(self.DEF_file, 'r', encoding='utf-8-sig')
+        self.DEF = f.readlines()
+        f.close()
+        
+        # self.Arrays = {}
+        arrID = '-1'
+        for i,l in enumerate(self.DEF):
+            if i == 0:
+                self.ArrayDefs['Timestamp']  = l.rstrip()
+            elif i == 1:
+                self.ArrayDefs['Timestamp'] = self.ArrayDefs['Timestamp'] + ' ' + l.rstrip()
+                self.ArrayDefs['Timestamp'] = pd.to_datetime(self.ArrayDefs['Timestamp'],format='%m/%d/%Y %H:%M:%S').strftime('%Y-%m-%dT%H%M')
+            k = 'Program:'
+            if k in l:
+                self.ArrayDefs['Program'] = l.split(k)[-1].rstrip('-\n').lstrip()
+            k = 'Wiring for'
+            if k in l:
+                self.ArrayDefs['Model'] = l.split(k)[-1].rstrip('-\n').lstrip()
+            if 'Output_Table' in l:
+                l = l.replace('  ',' ').split(' ')
+                arrID = l[0]
+                TD = parseFrequency(f"{l[2]} {l[3]}")
+                frequency = pd.to_timedelta(TD).total_seconds()
+                self.ArrayDefs['Table'][str(arrID)] = {
+                    'frequency':str(frequency)+'s',
+                    'variableMap':{},
+                    }
+            elif arrID != '-1' and l == '\n':
+                arrID = '-1'
+            elif arrID != '-1' :
+                l = l.rstrip('\n').split(' ')
+                operation = 'Smp'
+                if l[0] == '1':
+                    name = 'ArrayID'
+                else:
+                    name = l[1]
+                    if len(name.split('_'))>1:
+                        operation = name.split('_')[-1]
+                self.ArrayDefs['Table'][arrID]['variableMap'][name] = {}
+                self.ArrayDefs['Table'][arrID]['variableMap'][name]['unit'] = name.replace('_'+operation,'')
+                self.ArrayDefs['Table'][arrID]['variableMap'][name]['variableDescription'] = operation
+        rowCT = {}
+        TOA5_string = {}
+        for arrID in self.ArrayDefs['Table']:
+            rowCT[arrID] = 1
+            # Arbitrary junk header
+            TOA5_string[arrID] = f'"TOA5","","{self.ArrayDefs['Model']}","","","{self.ArrayDefs['Program']}","","{arrID}"\n'
+            row = ['"TIMESTAMP"','"RECORD"']
+            for i,name in enumerate(self.ArrayDefs['Table'][arrID]['variableMap']):
+                if i>3:
+                    row.append(f'"{name}"')
+            TOA5_string[arrID] = TOA5_string[arrID] + ','.join(row) + '\n'
+            row = ['"TS"','"RN"']
+            for i,name in enumerate(self.ArrayDefs['Table'][arrID]['variableMap'].values()):
+                if i>3:
+                    row.append(f'"{name['unit']}"')
+            TOA5_string[arrID] = TOA5_string[arrID] + ','.join(row) + '\n'
+            row = ['","','"SMP"']
+            for i,name in enumerate(self.ArrayDefs['Table'][arrID]['variableMap'].values()):
+                if i>3:
+                    row.append(f'"{name['variableDescription']}"')
+            TOA5_string[arrID] = TOA5_string[arrID] + ','.join(row) + '\n'
+        for row in self.MA:
+            if len(row) != len(self.ArrayDefs['Table'][row[0]]['variableMap']):
+                if self.verbose:
+                    print(f"Warning: Row length mismatch in mixed array for {row[0]}: {len(row)} vs {len(self.ArrayDefs['Table'][row[0]]['variableMap'])}")
+                pass
+            newRow = [str(s) for s in [self.parseDates(row),rowCT[arrID] ]+[float(f) for f in row[4:]]]
+            TOA5_string[arrID] = TOA5_string[arrID] + ','.join(newRow) + '\n'
+            rowCT[arrID] += 1
+        self.dOuts = {}
+        for name,file in TOA5_string.items():
+            sourceFile = self.DAT_file.split('.')[0] + f'_ArrayID{name}_{datetime.datetime.now().strftime('%Y_%m_%d_%H%M')}.dat'
+            with open(sourceFile,'w') as f:
+                f.write(file)
+            self.dOuts[name] = TOA5(sourceFile=sourceFile)
+            if not self.saveTOA5:
+                os.remove(sourceFile)
+
+
+    def parseDates(self,row):
+        Date = ' '.join([str(int(D)) for D in row[1:3]])
+        Date = pd.to_datetime(Date,format = '%Y %j')
+        Time = str(int(row[3])).zfill(4).ljust(6,'0')
+        Time = Time[:2]+':'+Time[2:4]+':'+Time[4:]
+        Time = pd.to_timedelta(Time)
+        Timestamp = Date + Time
+        return(Timestamp.strftime('%Y-%m-%d %H:%M:%S'))
+            

@@ -12,12 +12,14 @@ try:
     from .helperFunctions.loadDict import loadDict
     from .helperFunctions.updateDict import updateDict
     from .helperFunctions.log import log
+    from .helperFunctions.parseFrequency import parseFrequency
 except:
     # absolute import for use as standalone
     from helperFunctions.asdict_repr import asdict_repr
     from helperFunctions.loadDict import loadDict
     from helperFunctions.updateDict import updateDict
     from helperFunctions.log import log
+    from helperFunctions.parseFrequency import parseFrequency
     
 @dataclass(kw_only=True)
 class _metadata:
@@ -111,20 +113,6 @@ class genericLoggerFile(_metadata):
         self.safeMap = {val['originalName']:safeName for safeName,val in self.variableMap.items()}
         self.backMap = {safeName:originalName for originalName,safeName in self.safeMap.items()}
         self.DataFrame = self.DataFrame.rename(columns=self.safeMap)
-        
-    def parseFreq(self,text):
-        #Parse a measurement frequency from a assorted string inputs to a format compatible with pandas datetime
-        def split_digit(s):
-            match = re.search(r"\d", s)
-            if match:
-                s = s[match.start():]
-            return s 
-        freqDict = {'MSEC':'ms','Usec':'us','Sec':'s','HR':'h','MIN':'min'}
-        freq = split_digit(text)
-        for key,value in freqDict.items():
-            freq = re.sub(key.lower(), value, freq, flags=re.IGNORECASE)
-        freq = freq.replace(' ','')
-        return(freq)
 
 @dataclass
 class template(genericLoggerFile):
