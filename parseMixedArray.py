@@ -65,7 +65,7 @@ class Metadata:
 class parseMixedArray(Metadata):
     def __init__(self,**kwds):
         super().__init__(**kwds)
-
+ 
     def parse(self,file,DEF=None,saveTo=None,timezone=None,clip=None):
         if not file.endswith('.dat'):
             self.mode = 0
