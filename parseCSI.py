@@ -248,7 +248,7 @@ class mixedArray():
         for arrID in self.ArrayDefs['Table']:
             rowCT[arrID] = 1
             # Arbitrary junk header
-            TOA5_string[arrID] = f'"TOA5","","{self.ArrayDefs['Model']}","","","{self.ArrayDefs['Program']}","","{arrID}"\n'
+            TOA5_string[arrID] = f'"TOA5","","{self.ArrayDefs["Model"]}","","","{self.ArrayDefs["Program"]}","","{arrID}"\n'
             row = ['"TIMESTAMP"','"RECORD"']
             for i,name in enumerate(self.ArrayDefs['Table'][arrID]['variableMap']):
                 if i>3:
@@ -257,12 +257,12 @@ class mixedArray():
             row = ['"TS"','"RN"']
             for i,name in enumerate(self.ArrayDefs['Table'][arrID]['variableMap'].values()):
                 if i>3:
-                    row.append(f'"{name['unit']}"')
+                    row.append(f'"{name["unit"]}"')
             TOA5_string[arrID] = TOA5_string[arrID] + ','.join(row) + '\n'
             row = ['","','"SMP"']
             for i,name in enumerate(self.ArrayDefs['Table'][arrID]['variableMap'].values()):
                 if i>3:
-                    row.append(f'"{name['variableDescription']}"')
+                    row.append(f'"{name["variableDescription"]}"')
             TOA5_string[arrID] = TOA5_string[arrID] + ','.join(row) + '\n'
         for row in self.MA:
             if len(row) != len(self.ArrayDefs['Table'][row[0]]['variableMap']):
@@ -274,7 +274,7 @@ class mixedArray():
             rowCT[arrID] += 1
         self.dOuts = {}
         for name,file in TOA5_string.items():
-            sourceFile = self.DAT_file.split('.')[0] + f'_ArrayID{name}_{datetime.datetime.now().strftime('%Y_%m_%d_%H%M')}.dat'
+            sourceFile = self.DAT_file.split('.')[0] + f'_ArrayID{name}_{datetime.datetime.now().strftime("%Y_%m_%d_%H%M")}.dat'
             with open(sourceFile,'w') as f:
                 f.write(file)
             self.dOuts[name] = TOA5(sourceFile=sourceFile)
