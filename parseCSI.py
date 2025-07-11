@@ -281,7 +281,6 @@ class mixedArray():
             if not self.saveTOA5:
                 os.remove(sourceFile)
 
-
     def parseDates(self,row):
         Date = ' '.join([str(int(D)) for D in row[1:3]])
         Date = pd.to_datetime(Date,format = '%Y %j')
