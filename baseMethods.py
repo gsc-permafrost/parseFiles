@@ -8,11 +8,11 @@ import configparser
 from dataclasses import dataclass,field
 try:
     # relative import for use as submodules
-    from .helperFunctions.asdict_repr import asdict_repr
-    from .helperFunctions.loadDict import loadDict
-    from .helperFunctions.updateDict import updateDict
-    from .helperFunctions.log import log
-    from .helperFunctions.parseFrequency import parseFrequency
+    from src.helperFunctions.asdict_repr import asdict_repr
+    from src.helperFunctions.loadDict import loadDict
+    from src.helperFunctions.updateDict import updateDict
+    from src.helperFunctions.log import log
+    from src.helperFunctions.parseFrequency import parseFrequency
 except:
     # absolute import for use as standalone
     from helperFunctions.asdict_repr import asdict_repr

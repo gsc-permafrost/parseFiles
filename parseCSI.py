@@ -69,7 +69,7 @@ class asciiHeader(genericLoggerFile):
                     )},self.variableMap,overwrite=True)
             dtype_map_struct = {"IEEE4B": "f","IEEE8B": "d","FP2": "H"}
             self.byteMap = ''.join([dtype_map_struct[var['dtype']] for var in self.variableMap.values()])
-            self.DataFrame = pd.DataFrame(columns=list(self.variableMap.keys()))    
+            self.DataFrame = pd.DataFrame(columns=list(self.variableMap.keys())) 
         
     def parseLine(self,line):
         if type(line) == str:
@@ -92,13 +92,16 @@ class TOA5(asciiHeader):
 
 @dataclass(kw_only=True)
 class TOB3(asciiHeader):
+    extract: bool = False
 
     def __post_init__(self):
         super().__post_init__()
+        self.fileSize = os.path.getsize(self.sourceFile)
         with open(self.sourceFile,'rb') as self.fileObject:
             self.parseHeader()
-            self.readFrames()
-            self.standardize()
+            if self.extract:
+                self.readFrames()
+                self.standardize()
         self.fileObject.close()
             
     def readFrames(self):
@@ -106,44 +109,108 @@ class TOB3(asciiHeader):
         Footer_size = 4
         record_size = struct.calcsize('>'+self.byteMap)
         records_per_frame = int((self.frameSize-Header_size-Footer_size)/record_size)
+        nframes = int((self.fileSize-self.fileObject.tell())/self.frameSize)
         self.byteMap_Body = '>'+''.join([self.byteMap for r in range(records_per_frame)])
         i = 0
         Timestamp = []
         campbellBaseTime = pd.to_datetime('1990-01-01').timestamp()
         readFrame = True
         frequency = float(self.frequency.rstrip('s'))
-        while readFrame:         
-            sb = self.fileObject.read(self.frameSize)
-            if len(sb)!=0:
-                Header = sb[:Header_size]
-                Header = np.array(struct.unpack('LLL', Header))
-                Footer = sb[-Footer_size:]
-                Footer = struct.unpack('L', Footer)[0]
-                flag_e = (0x00002000 & Footer) >> 14
-                flag_m = (0x00004000 & Footer) >> 15
-                footer_validation = (0xFFFF0000 & Footer) >> 16
-                time_1 = (Header[0]+Header[1]*self.frameTime+campbellBaseTime)
-                if footer_validation == self.val_stamp and flag_e != 1 and flag_m != 1:
-                    Timestamp.append([time_1+i*frequency for i in range(records_per_frame)])
-                    Body = sb[Header_size:-Footer_size]
-                    Body = struct.unpack(self.byteMap_Body, Body)
-                    if 'H' in self.byteMap_Body:
-                        Body = self.decode_fp2(Body)
-                    if i == 0:
-                        data = np.array(Body).reshape(-1,len(self.byteMap))
-                    else:
-                        data = np.concatenate((data,np.array(Body).reshape(-1,len(self.byteMap))),axis=0)
-                    i += 1
+        bindata = self.fileObject.read()
+        
+        # frames = [bindata[i*self.frameSize:(i+1)*self.frameSize] for i in range(nframes)]
+        # unpack the binary data and parse all the frames with list comprehension
+        frames = [
+            [
+                # Headers
+                struct.unpack('LLL', bindata[i*self.frameSize:i*self.frameSize+Header_size]),
+                # Body
+                self.decode_body(bindata[i*self.frameSize+Header_size:(i+1)*self.frameSize-Footer_size]),
+                # Footers    
+                struct.unpack('L',bindata[(i+1)*self.frameSize-Footer_size:(i+1)*self.frameSize])
+                ]
+            for i in range(nframes)]
+        
+        # calculate timestamp and keep only valid frames
+        data = {frame[0][0]+frame[0][1]*self.frameTime+campbellBaseTime:list(frame[1])
+            for frame in frames if 
+                (0xFFFF0000 & frame[2][0]) >> 16 == self.val_stamp and 
+                (0x00002000 & frame[2][0]) >> 14 != 1 and 
+                (0x00004000 & frame[2][0]) >> 15 != 1
+        }
+        # frames = np.array([list(struct.unpack('LLL', frame[0])) + 
+                # list(self.decode_body(frame[1])) +
+                # list(struct.unpack('L', frame[2])) for frame in frames])
+                
+        # frames = [
+        #     [struct.unpack('LLL', frame[:Header_size]),
+        #      self.decode_body(frame[Header_size:-Footer_size]),
+        #      struct.unpack('L', frame[-Footer_size:])[0]]
+        #     for frame in frames]
+        breakpoint()
+        for i,frame in enumerate(frames):
+            Header = frame[:Header_size]
+            Header = np.array(struct.unpack('LLL', Header))
+            Footer = frame[-Footer_size:]
+            Footer = struct.unpack('L', Footer)[0]
+            flag_e = (0x00002000 & Footer) >> 14
+            flag_m = (0x00004000 & Footer) >> 15
+            footer_validation = (0xFFFF0000 & Footer) >> 16
+            time_1 = (Header[0]+Header[1]*self.frameTime+campbellBaseTime)
+            if footer_validation == self.val_stamp and flag_e != 1 and flag_m != 1:
+                Timestamp.append([time_1+i*frequency for i in range(records_per_frame)])
+                Body = frame[Header_size:-Footer_size]
+                Body = struct.unpack(self.byteMap_Body, Body)
+                if 'H' in self.byteMap_Body:
+                    Body = self.decode_fp2(Body)
+                if i == 0:
+                    data = np.array(Body).reshape(-1,len(self.byteMap))
                 else:
-                    readFrame = False
+                    data = np.concatenate((data,np.array(Body).reshape(-1,len(self.byteMap))),axis=0)
             else:
                 readFrame = False
-        if self.verbose:
-            print(f'Frames {i}')
-        if i > 0:
-            self.toDataFrame(data,np.array(Timestamp).flatten())
+        # while readFrame:
+        #     breakpoint()
+        #     sb = self.fileObject.read(self.frameSize)
+        #     if len(sb)!=0:
+        #         Header = sb[:Header_size]
+        #         Header = np.array(struct.unpack('LLL', Header))
+        #         Footer = sb[-Footer_size:]
+        #         Footer = struct.unpack('L', Footer)[0]
+        #         flag_e = (0x00002000 & Footer) >> 14
+        #         flag_m = (0x00004000 & Footer) >> 15
+        #         footer_validation = (0xFFFF0000 & Footer) >> 16
+        #         time_1 = (Header[0]+Header[1]*self.frameTime+campbellBaseTime)
+        #         if footer_validation == self.val_stamp and flag_e != 1 and flag_m != 1:
+        #             Timestamp.append([time_1+i*frequency for i in range(records_per_frame)])
+        #             Body = sb[Header_size:-Footer_size]
+        #             Body = struct.unpack(self.byteMap_Body, Body)
+        #             if 'H' in self.byteMap_Body:
+        #                 Body = self.decode_fp2(Body)
+        #             if i == 0:
+        #                 data = np.array(Body).reshape(-1,len(self.byteMap))
+        #             else:
+        #                 data = np.concatenate((data,np.array(Body).reshape(-1,len(self.byteMap))),axis=0)
+        #             i += 1
+        #         else:
+        #             readFrame = False
+        #     else:
+        #         readFrame = False 
+        #     if i > 2 and self.verbose:
+        #         print(Timestamp[-1][0]-Timestamp[0][0])
+
+        # if self.verbose:
+        #     print(f'Frames {i}')
+        # if i > 0:
+        #     self.toDataFrame(data,np.array(Timestamp).flatten())
         # else:
         #     return (None,None)
+
+    def decode_body(self,Body):
+        Body = struct.unpack(self.byteMap_Body, Body)
+        if 'H' in self.byteMap_Body:
+            Body = self.decode_fp2(Body)
+        return(Body)
 
     def decode_fp2(self,Body):
         # adapted from: https://github.com/ansell/camp2ascii/tree/cea750fb721df3d3ccc69fe7780b372d20a8160d
