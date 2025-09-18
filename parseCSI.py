@@ -54,6 +54,7 @@ class asciiHeader(genericLoggerFile):
             self.Table = self.preamble[0]
             self.frequency = pd.to_timedelta(parseFrequency(self.preamble[1])).total_seconds()
             self.frameSize = int(self.preamble[2])
+            self.tableSize = int(self.preamble[3])
             self.val_stamp = int(self.preamble[4])    
             self.frameTime = pd.to_timedelta(parseFrequency(self.preamble[5])).total_seconds()
             self.variableMap = updateDict(
@@ -107,43 +108,42 @@ class TOB3(asciiHeader):
         self.fileObject.close()
             
     def readFrames(self):
-        Header_size = 12
-        Footer_size = 4
-        record_size = struct.calcsize('>'+self.byteMap)
-        self.records_per_frame = int((self.frameSize-Header_size-Footer_size)/record_size)
+        self.headerSize = 12
+        self.footerSize = 4
+        self.recordSize = struct.calcsize('>'+self.byteMap)
+        self.recordsPerFrame = int((self.frameSize-self.headerSize-self.footerSize)/self.recordSize)
         nframes = int((self.fileSize-self.fileObject.tell())/self.frameSize)
-        self.byteMap_Body = '>'+''.join([self.byteMap for r in range(self.records_per_frame)])
+        self.byteMap_Body = '>'+''.join([self.byteMap for r in range(self.recordsPerFrame)])
         
-        # frames = [bindata[i*self.frameSize:(i+1)*self.frameSize] for i in range(nframes)]
         # unpack the binary data and parse all the frames with list comprehension
         bindata = self.fileObject.read()
         frames = [
             [
                 # Headers
-                self.decode_header(bindata[i*self.frameSize:i*self.frameSize+Header_size]),
+                self.decode_header(bindata[i*self.frameSize:i*self.frameSize+self.headerSize]),
                 # Body
-                self.decode_body(bindata[i*self.frameSize+Header_size:(i+1)*self.frameSize-Footer_size]),
+                self.decode_body(bindata[i*self.frameSize+self.headerSize:(i+1)*self.frameSize-self.footerSize]),
                 # Footers    
-                self.decode_footer(bindata[(i+1)*self.frameSize-Footer_size:(i+1)*self.frameSize])
+                self.decode_footer(bindata[(i+1)*self.frameSize-self.footerSize:(i+1)*self.frameSize])
                 ]
             for i in range(nframes)]
-        frames = [frame[0][i]+frame[1][i] for frame in frames for i in range(self.records_per_frame) if frame[2][i][0]]
+        frames = [frame[0][i]+frame[1][i] for j,frame in enumerate(frames) for i in range(self.recordsPerFrame) if frame[2][i][0]]
         self.DataFrame = pd.DataFrame(frames,
-            columns=[self.timestampName]+[var for var in self.variableMap])
+            columns=[self.timestampName]+[var for var in self.variableMap]) 
         self.DataFrame.index = pd.to_datetime(self.DataFrame[self.timestampName],unit='s')
         self.frequency = f"{self.frequency}s"
         self.DataFrame.index = self.DataFrame.index.round(self.frequency)
+        # Remove implausible timestamps???
+        # self.DataFrame = self.DataFrame.loc[self.DataFrame.index<self.fileTimestamp+pd.to_timedelta(self.frequency)]
         self.typeMap = 'd'+self.byteMap.replace('H','f')
         self.typeMap = {c:self.typeMap[i] for i,c in enumerate(self.DataFrame.columns)}
-        self.DataFrame = self.DataFrame.astype(self.typeMap)
-        breakpoint()    
+        self.DataFrame = self.DataFrame.astype(self.typeMap) 
         
     def decode_header(self,Header):
         # Get the timestamp from the header
         Header = struct.unpack('LLL', Header)
         Timestamp = Header[0]+Header[1]*self.frameTime+self.campbellBaseTime
-        Timestamp = [[Timestamp + i*self.frequency] for i in range(self.records_per_frame)]
-        breakpoint()
+        Timestamp = [[Timestamp + i*self.frequency] for i in range(self.recordsPerFrame)]
         return(Timestamp)
 
     def decode_body(self,Body):
@@ -151,17 +151,23 @@ class TOB3(asciiHeader):
         if 'H' in self.byteMap_Body:
             Body = self.decode_fp2(Body)
         Body = list(Body)
-        npr = int(len(Body)/self.records_per_frame)
-        Body = [Body[i*npr:(i+1)*npr] for i in range(self.records_per_frame)]
+        npr = int(len(Body)/self.recordsPerFrame)
+        Body = [Body[i*npr:(i+1)*npr] for i in range(self.recordsPerFrame)]
         return(Body)
     
     def decode_footer(self,Footer):
         # True/False flag for valid frame
+        # Adapted from https://github.com/ansell/camp2ascii/blob/cea750fb721df3d3ccc69fe7780b372d20a8160d/frame_read.c#L109
         Footer = struct.unpack('L',Footer)[0]
-        Footer = ((0xFFFF0000 & Footer) >> 16 == self.val_stamp and 
-                (0x00002000 & Footer) >> 14 != 1 and 
-                (0x00004000 & Footer) >> 15 != 1)
-        Footer = [[Footer] for i in range(self.records_per_frame)]
+        footerOffset     = (0x000007FF & Footer)
+        footerValidation = (0xFFFF0000 & Footer) >> 16
+        Footer = (footerValidation == self.val_stamp)
+        # For handling partial frames
+        if footerOffset > 0:
+            offset = int(self.recordSize/(self.frameSize-(footerOffset+self.headerSize+self.footerSize)))
+        else:
+            offset = self.recordsPerFrame
+        Footer = [[Footer] if i < offset else [False] for i in range(self.recordsPerFrame)]
         return(Footer)
 
     def decode_fp2(self,Body):
