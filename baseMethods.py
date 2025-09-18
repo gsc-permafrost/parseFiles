@@ -29,30 +29,30 @@ class _metadata:
     Elevation: float = None
     variableMap: dict = None
 
-
 @dataclass(kw_only=True)
 class _variableMap:
     # map non-standard dtype names 
-    dtype_map_numpy = {"IEEE4B": "float32","IEEE8B": "float64","FP2": "float16"}
-    # default fill for safeName
+    dtype_map_numpy = {"IEEE4B": "float32", "IEEE8B": "float64", "FP2": "float32"}
+    # default fill for variableName
     fillChar = '_'
     # dataclass fields
-    originalName: str = None
-    safeName: str = None
+    title: str = None
+    variableName: str = None
     ignore: bool = None
     sensor: str = None
-    unit: str = None
+    units: str = None
     dtype: str = None
+    dateRange: list = None
     variableDescription: str = None
     verbose: bool = field(default=False,repr=False)
     dropCols: list = field(default_factory=lambda:[],repr=False)
 
     def __post_init__(self):
-        if self.originalName is not None:
-            if self.safeName is None:
-                self.safeName = re.sub('[^0-9a-zA-Z]+',self.fillChar,self.originalName)
+        if self.title is not None:
+            if self.variableName is None:
+                self.variableName = re.sub('[^0-9a-zA-Z]+',self.fillChar,self.title)
             else:
-                self.safeName = re.sub('[^0-9a-zA-Z]+',self.fillChar,self.safeName)
+                self.variableName = re.sub('[^0-9a-zA-Z]+',self.fillChar,self.variableName)
             if self.dtype is not None:
                 if self.dtype in self.dtype_map_numpy:
                     self.dtype = np.dtype(self.dtype_map_numpy[self.dtype])
@@ -62,11 +62,11 @@ class _variableMap:
                     self.ignore = not np.issubdtype(self.dtype,np.number)
             if self.dtype:
                 self.dtype = self.dtype.str
-            if self.safeName == self.fillChar*len(self.safeName):
+            if self.variableName == self.fillChar*len(self.variableName):
                 self.ignore = True
-            if self.safeName != self.originalName and self.verbose:
-                print(['Re-named: ',self.originalName,' to: ',self.safeName])
-            if self.originalName in self.dropCols or self.safeName in self.dropCols:
+            if self.variableName != self.title and self.verbose:
+                print(['Re-named: ',self.title,' to: ',self.variableName])
+            if self.title in self.dropCols or self.variableName in self.dropCols:
                 self.ignore = True
         
 @dataclass(kw_only=True)
@@ -77,6 +77,8 @@ class genericLoggerFile(_metadata):
     fileType: str = None
     frequency: str = None
     timestampName: str = "TIMESTAMP"
+    timestampUnits: str = 'POSIX time (seconds elapsed since 1970-01-01T00:00:00Z)'
+    UTCoffset: float = 0
     fileTimestamp: str = field(default='%Y_%m_%d_%H%M',repr=False)
     variableMap: dict = field(default_factory=lambda:{})
     DataFrame: pd.DataFrame = field(default_factory=pd.DataFrame,repr=False)
@@ -95,12 +97,14 @@ class genericLoggerFile(_metadata):
             self.fileType=self.__class__.__name__
         self.variableMap = updateDict(
             {key:{
-                'dtype':self.DataFrame[key].dtype,'originalName':key}|self.variableMap[key] 
+                'dtype':self.DataFrame[key].dtype,'title':key}|self.variableMap[key] 
                 if key in self.variableMap else 
-                {'dtype':self.DataFrame[key].dtype,'originalName':key} 
+                {'dtype':self.DataFrame[key].dtype,'title':key} 
                 for key in self.DataFrame.columns},self.variableMap#,overwrite=overwrite
         )
-        self.variableMap = {var.safeName:asdict_repr(var) for var in map(lambda name: _variableMap(dropCols=self.dropCols,**self.variableMap[name]),self.variableMap.keys())}
+        self.variableMap[self.timestampName]['dtype'] = 'float64'
+        self.variableMap[self.timestampName]['units'] = self.timestampUnits
+        self.variableMap = {var.variableName:asdict_repr(var) for var in map(lambda name: _variableMap(dropCols=self.dropCols,**self.variableMap[name]),self.variableMap.keys())}
         if self.frequency is None:
             if isinstance(self.DataFrame.index, pd.DatetimeIndex) and self.DataFrame.index.shape[0]>0:
                 self.frequency=f"{np.quantile(self.DataFrame.index.diff().total_seconds().dropna().values,.25)}s"
@@ -109,9 +113,9 @@ class genericLoggerFile(_metadata):
         if self.binZip:
             print('call')
 
-    def applySafeNames(self):
-        self.safeMap = {val['originalName']:safeName for safeName,val in self.variableMap.items()}
-        self.backMap = {safeName:originalName for originalName,safeName in self.safeMap.items()}
+    def applyvariableNames(self):
+        self.safeMap = {val['title']:variableName for variableName,val in self.variableMap.items()}
+        self.backMap = {variableName:title for title,variableName in self.safeMap.items()}
         self.DataFrame = self.DataFrame.rename(columns=self.safeMap)
 
 @dataclass
